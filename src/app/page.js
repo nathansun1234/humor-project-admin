@@ -1,3 +1,91 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import SettingsMenu from './components/SettingsMenu';
+import styles from './page.module.css';
+
+const REFRESH_TOKEN_ERROR_MESSAGES = [
+  'Invalid Refresh Token',
+  'Refresh Token Not Found',
+];
+
+function isRefreshTokenError(error) {
+  if (!error?.message) {
+    return false;
+  }
+
+  return REFRESH_TOKEN_ERROR_MESSAGES.some((message) =>
+    error.message.includes(message)
+  );
+}
+
 export default function Home() {
-  return <main>hello world</main>;
+  const supabase = useMemo(() => createClient(), []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const signInWithGoogle = () =>
+    supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${location.origin}/auth/callback`,
+      },
+    });
+
+  const handleSignInWithGoogle = async () => {
+    setIsLoading(true);
+    setErrorMessage('');
+
+    const { error } = await signInWithGoogle();
+
+    if (!error) {
+      return;
+    }
+
+    if (isRefreshTokenError(error)) {
+      await supabase.auth.signOut({ scope: 'local' });
+
+      const retry = await signInWithGoogle();
+
+      if (!retry.error) {
+        return;
+      }
+
+      setErrorMessage(retry.error.message);
+      setIsLoading(false);
+      return;
+    }
+
+    setErrorMessage(error.message);
+    setIsLoading(false);
+  };
+
+  return (
+    <main className={styles.page}>
+      <div className={styles.backgroundLayer} />
+      <SettingsMenu />
+      <div className={styles.shell}>
+        <section className={styles.card}>
+          <p className={styles.eyebrow}>Welcome</p>
+          <h1 className={styles.title}>Admin Panel</h1>
+          <p className={styles.subtitle}>
+            Requires Superadmin.
+          </p>
+          <button
+            onClick={handleSignInWithGoogle}
+            disabled={isLoading}
+            className={styles.signInButton}
+          >
+            {isLoading ? 'Signing in...' : 'Sign in with Google'}
+          </button>
+          {errorMessage ? (
+            <p className={styles.errorMessage} role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
+        </section>
+      </div>
+    </main>
+  );
 }

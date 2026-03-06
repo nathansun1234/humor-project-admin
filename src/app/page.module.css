@@ -1,141 +1,148 @@
 .page {
-  --background: #fafafa;
-  --foreground: #fff;
-
-  --text-primary: #000;
-  --text-secondary: #666;
-
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
-
-  display: flex;
+  position: relative;
   min-height: 100vh;
+  overflow: hidden;
+  background: #fef2f2;
+  color: #0f172a;
+  padding: 1.5rem 1rem;
+}
+
+.backgroundLayer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, rgba(239, 68, 68, 0.1), transparent 48%),
+    radial-gradient(circle at bottom, rgba(239, 68, 68, 0.08), transparent 44%);
+}
+
+.shell {
+  position: relative;
+  margin: 0 auto;
+  min-height: calc(100vh - 3rem);
+  width: 100%;
+  max-width: 56rem;
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-geist-sans);
-  background-color: var(--background);
 }
 
-.main {
-  display: flex;
-  min-height: 100vh;
+.card {
   width: 100%;
-  max-width: 800px;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
+  max-width: 36rem;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  padding: 1.75rem;
+  text-align: center;
+  box-shadow:
+    0 25px 50px -12px rgb(15 23 42 / 0.25),
+    0 0 0 1px rgb(15 23 42 / 0.04);
 }
 
-.intro {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
+.eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #475569;
 }
 
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
+.title {
+  margin-top: 0.75rem;
+  font-size: 1.875rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
-  color: var(--text-primary);
 }
 
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
-  color: var(--text-secondary);
+.subtitle {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: #475569;
 }
 
-.intro a {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.ctas {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  max-width: 440px;
-  gap: 16px;
-  font-size: 14px;
-}
-
-.ctas a {
-  display: flex;
-  justify-content: center;
+.signInButton {
+  margin-top: 2rem;
+  display: inline-flex;
   align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 0;
+  background: rgb(16 185 129 / 0.2);
+  padding: 0.75rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #065f46;
+  transition: background-color 0.2s ease;
   cursor: pointer;
-  width: fit-content;
-  font-weight: 500;
 }
 
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
-  gap: 8px;
+.signInButton:hover {
+  background: rgb(16 185 129 / 0.35);
 }
 
-a.secondary {
-  border-color: var(--button-secondary-border);
+.signInButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(110 231 183 / 0.6);
 }
 
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
-  }
-
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
-  }
+.signInButton:disabled {
+  opacity: 0.75;
+  cursor: not-allowed;
 }
 
-@media (max-width: 600px) {
-  .main {
-    padding: 48px 24px;
-  }
-
-  .intro {
-    gap: 16px;
-  }
-
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
-  }
+.errorMessage {
+  margin-top: 0.875rem;
+  color: #b91c1c;
+  font-size: 0.875rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
-  }
-
+@media (min-width: 640px) {
   .page {
-    --background: #000;
-    --foreground: #000;
-
-    --text-primary: #ededed;
-    --text-secondary: #999;
-
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+    padding-inline: 1.5rem;
   }
+
+  .card {
+    padding: 2.5rem;
+  }
+
+  .title {
+    font-size: 2.25rem;
+  }
+
+  .subtitle {
+    font-size: 1rem;
+  }
+}
+
+:global(html.dark) .page {
+  background: #180909;
+  color: #f8fafc;
+}
+
+:global(html.dark) .backgroundLayer {
+  background:
+    radial-gradient(circle at top, rgba(248, 113, 113, 0.14), transparent 48%),
+    radial-gradient(circle at bottom, rgba(248, 113, 113, 0.12), transparent 44%);
+}
+
+:global(html.dark) .card {
+  border-color: rgb(255 255 255 / 0.1);
+  background: #000000;
+  box-shadow:
+    0 30px 60px -24px rgb(0 0 0 / 0.8),
+    0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+:global(html.dark) .eyebrow,
+:global(html.dark) .subtitle {
+  color: #cbd5e1;
+}
+
+:global(html.dark) .signInButton {
+  color: #d1fae5;
+}
+
+:global(html.dark) .errorMessage {
+  color: #fca5a5;
 }

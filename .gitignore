@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 
 # agents
-agents.md
+AGENTS.md
 
 # vercel
 .vercel
