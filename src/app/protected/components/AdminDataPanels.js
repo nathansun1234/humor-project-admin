@@ -16,6 +16,174 @@ const IMAGE_FORM_DEFAULTS = {
   isPublic: false,
   isCommonUse: false,
 };
+const USERS_SUB_MODE_OPTIONS = [
+  { id: 'users', label: 'Users' },
+  { id: 'signupDomains', label: 'Signup Domains' },
+  { id: 'whitelistedEmails', label: 'Whitelisted Emails' },
+];
+const CAPTIONS_SUB_MODE_OPTIONS = [
+  { id: 'captions', label: 'Captions' },
+  { id: 'captionRequests', label: 'Captions Requests' },
+  { id: 'captionExamples', label: 'Captions Examples' },
+  { id: 'terms', label: 'Terms' },
+];
+const HUMOR_FLAVORS_SUB_MODE_OPTIONS = [
+  { id: 'humorFlavors', label: 'Humor Flavors' },
+  { id: 'humorFlavorSteps', label: 'Humor Flavor Steps' },
+  { id: 'humorFlavorMix', label: 'Humor Mix' },
+];
+const LLMS_SUB_MODE_OPTIONS = [
+  { id: 'llmModels', label: 'LLM Models' },
+  { id: 'llmProviders', label: 'LLM Providers' },
+  { id: 'llmPromptChains', label: 'LLM Prompt Chains' },
+  { id: 'llmResponses', label: 'LLM Responses' },
+];
+const READ_ONLY_TABLE_CONFIG = {
+  captionRequests: {
+    title: 'Captions Requests',
+    columns: ['id', 'created_datetime_utc', 'profile_id', 'image_id'],
+  },
+  captionExamples: {
+    title: 'Captions Examples',
+    columns: [
+      'id',
+      'created_datetime_utc',
+      'modified_datetime_utc',
+      'image_description',
+      'caption',
+      'explanation',
+      'priority',
+      'image_id',
+    ],
+  },
+  terms: {
+    title: 'Terms',
+    columns: ['id', 'created_datetime_utc', 'modified_datetime_utc', 'term', 'definition', 'example', 'priority', 'term_type_id'],
+  },
+  signupDomains: {
+    title: 'Signup Domains',
+    columns: ['id', 'created_datetime_utc', 'apex_domain'],
+  },
+  whitelistedEmails: {
+    title: 'Whitelisted Emails',
+    columns: ['id', 'created_datetime_utc', 'modified_datetime_utc', 'email_address'],
+  },
+  humorFlavors: {
+    title: 'Humor Flavors',
+    columns: ['id', 'created_datetime_utc', 'description', 'slug'],
+  },
+  humorFlavorSteps: {
+    title: 'Humor Flavor Steps',
+    columns: [
+      'id',
+      'created_datetime_utc',
+      'humor_flavor_id',
+      'llm_temperature',
+      'order_by',
+      'llm_input_type_id',
+      'llm_output_type_id',
+      'llm_model_id',
+      'humor_flavor_step_type_id',
+      'llm_system_prompt',
+      'llm_user_prompt',
+      'description',
+    ],
+  },
+  humorFlavorMix: {
+    title: 'Humor Mix',
+    columns: ['id', 'created_datetime_utc', 'humor_flavor_id', 'caption_count'],
+  },
+  llmModels: {
+    title: 'LLM Models',
+    columns: ['id', 'created_datetime_utc', 'name', 'llm_provider_id', 'provider_model_id', 'is_temperature_supported'],
+  },
+  llmProviders: {
+    title: 'LLM Providers',
+    columns: ['id', 'created_datetime_utc', 'name'],
+  },
+  llmPromptChains: {
+    title: 'LLM Prompt Chains',
+    columns: ['id', 'created_datetime_utc', 'caption_request_id'],
+  },
+  llmResponses: {
+    title: 'LLM Responses',
+    columns: [
+      'id',
+      'created_datetime_utc',
+      'llm_model_response',
+      'processing_time_seconds',
+      'llm_model_id',
+      'profile_id',
+      'caption_request_id',
+      'llm_system_prompt',
+      'llm_user_prompt',
+      'llm_temperature',
+      'humor_flavor_id',
+      'llm_prompt_chain_id',
+      'humor_flavor_step_id',
+    ],
+  },
+};
+const MUTABLE_READ_ONLY_TABLE_CONFIG = {
+  humorFlavorMix: {
+    canCreate: false,
+    canDelete: false,
+    fields: [
+      { key: 'humor_flavor_id', label: 'Humor flavor id', type: 'text' },
+      { key: 'caption_count', label: 'Caption count', type: 'number' },
+    ],
+  },
+  terms: {
+    canCreate: true,
+    canDelete: true,
+    fields: [
+      { key: 'term', label: 'Term', type: 'text' },
+      { key: 'definition', label: 'Definition', type: 'textarea' },
+      { key: 'example', label: 'Example', type: 'textarea' },
+      { key: 'priority', label: 'Priority', type: 'number' },
+      { key: 'term_type_id', label: 'Term type id', type: 'number' },
+    ],
+  },
+  captionExamples: {
+    canCreate: true,
+    canDelete: true,
+    fields: [
+      { key: 'image_description', label: 'Image description', type: 'textarea' },
+      { key: 'caption', label: 'Caption', type: 'textarea' },
+      { key: 'explanation', label: 'Explanation', type: 'textarea' },
+      { key: 'priority', label: 'Priority', type: 'number' },
+      { key: 'image_id', label: 'Image id', type: 'text' },
+    ],
+  },
+  llmModels: {
+    canCreate: true,
+    canDelete: true,
+    fields: [
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'llm_provider_id', label: 'LLM provider id', type: 'number' },
+      { key: 'provider_model_id', label: 'Provider model id', type: 'text' },
+      { key: 'is_temperature_supported', label: 'Temperature supported', type: 'boolean' },
+    ],
+  },
+  llmProviders: {
+    canCreate: true,
+    canDelete: true,
+    fields: [{ key: 'name', label: 'Name', type: 'text' }],
+  },
+  signupDomains: {
+    canCreate: true,
+    canDelete: true,
+    fields: [{ key: 'apex_domain', label: 'Apex domain', type: 'text' }],
+  },
+  whitelistedEmails: {
+    canCreate: true,
+    canDelete: true,
+    fields: [{ key: 'email_address', label: 'Email address', type: 'text' }],
+  },
+};
+const READ_ACCESS_LABEL = 'READ';
+const READ_UPDATE_ACCESS_LABEL = 'READ/UPDATE';
+const CRUD_ACCESS_LABEL = 'CREATE/READ/UPDATE/DELETE';
 
 function createInitialImageFormValues() {
   return { ...IMAGE_FORM_DEFAULTS };
@@ -48,6 +216,79 @@ function autoSizeTextarea(element) {
 
   element.style.height = 'auto';
   element.style.height = `${element.scrollHeight}px`;
+}
+
+function formatColumnLabel(column) {
+  return column
+    .split('_')
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatReadOnlyCellValue(value) {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+
+  if (typeof value === 'object') {
+    const serialized = JSON.stringify(value);
+    if (!serialized) {
+      return '—';
+    }
+
+    return serialized.length > 300 ? `${serialized.slice(0, 297)}...` : serialized;
+  }
+
+  const textValue = String(value);
+  if (textValue.trim().length === 0) {
+    return '—';
+  }
+
+  return textValue.length > 300 ? `${textValue.slice(0, 297)}...` : textValue;
+}
+
+function toBoolean(value) {
+  return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function getMutableReadOnlyConfig(viewKey) {
+  return MUTABLE_READ_ONLY_TABLE_CONFIG[viewKey] ?? null;
+}
+
+function getReadOnlyViewAccessLabel(viewKey) {
+  const mutableConfig = getMutableReadOnlyConfig(viewKey);
+
+  if (!mutableConfig) {
+    return READ_ACCESS_LABEL;
+  }
+
+  if (mutableConfig.canCreate && mutableConfig.canDelete) {
+    return CRUD_ACCESS_LABEL;
+  }
+
+  return READ_UPDATE_ACCESS_LABEL;
+}
+
+function createReadOnlyCrudFormValues(viewKey, row = null) {
+  const config = getMutableReadOnlyConfig(viewKey);
+
+  if (!config) {
+    return {};
+  }
+
+  const nextValues = {};
+
+  for (const field of config.fields) {
+    if (field.type === 'boolean') {
+      nextValues[field.key] = toBoolean(row?.[field.key]);
+      continue;
+    }
+
+    nextValues[field.key] = toDisplayText(row?.[field.key]) ?? '';
+  }
+
+  return nextValues;
 }
 
 function formatUserFullName(user) {
@@ -210,60 +451,6 @@ function extractRegisteredImageId(payload) {
   return toDisplayText(payload?.id);
 }
 
-function hasGeneratedCelebrityRecognition(value) {
-  if (value === null || value === undefined) {
-    return false;
-  }
-
-  if (typeof value === 'string') {
-    return value.trim().length > 0;
-  }
-
-  if (Array.isArray(value)) {
-    return true;
-  }
-
-  if (typeof value === 'object') {
-    return true;
-  }
-
-  return true;
-}
-
-function hasGeneratedEmbedding(value) {
-  if (value === null || value === undefined) {
-    return false;
-  }
-
-  if (Array.isArray(value)) {
-    return value.length > 0;
-  }
-
-  if (typeof value === 'string') {
-    return value.trim().length > 0;
-  }
-
-  return true;
-}
-
-function hasGeneratedImageMetadata(image) {
-  if (!image) {
-    return false;
-  }
-
-  return (
-    Boolean(toDisplayText(image.image_description)) &&
-    hasGeneratedCelebrityRecognition(image.celebrity_recognition) &&
-    hasGeneratedEmbedding(image.embedding)
-  );
-}
-
-function sleep(milliseconds) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, milliseconds);
-  });
-}
-
 export default function AdminDataPanels({
   users = [],
   captions = [],
@@ -292,7 +479,6 @@ export default function AdminDataPanels({
   const [isAddImageModalOpen, setIsAddImageModalOpen] = useState(false);
   const [addImageSelectedFile, setAddImageSelectedFile] = useState(null);
   const [addImageLocalPreviewUrl, setAddImageLocalPreviewUrl] = useState(null);
-  const [addImageStatusMessage, setAddImageStatusMessage] = useState('Select an image file to upload.');
   const [isSubmittingImage, setIsSubmittingImage] = useState(false);
   const [addImageError, setAddImageError] = useState('');
   const [addImageFormValues, setAddImageFormValues] = useState(createInitialImageFormValues);
@@ -301,7 +487,26 @@ export default function AdminDataPanels({
   const [isDeletingImage, setIsDeletingImage] = useState(false);
   const [editImageError, setEditImageError] = useState('');
   const [editImageFormValues, setEditImageFormValues] = useState(createInitialEditImageFormValues);
+  const [activeUsersSubMode, setActiveUsersSubMode] = useState('users');
+  const [activeCaptionsSubMode, setActiveCaptionsSubMode] = useState('captions');
+  const [activeHumorSubMode, setActiveHumorSubMode] = useState('humorFlavors');
+  const [activeLlmsSubMode, setActiveLlmsSubMode] = useState('llmModels');
+  const [readOnlyRowsByView, setReadOnlyRowsByView] = useState({});
+  const [isReadOnlyLoadingByView, setIsReadOnlyLoadingByView] = useState({});
+  const [readOnlyErrorsByView, setReadOnlyErrorsByView] = useState({});
+  const [readOnlyRefreshTokenByView, setReadOnlyRefreshTokenByView] = useState({});
+  const [readOnlySearchInputByView, setReadOnlySearchInputByView] = useState({});
+  const [appliedReadOnlySearchByView, setAppliedReadOnlySearchByView] = useState({});
+  const [isCrudModalOpen, setIsCrudModalOpen] = useState(false);
+  const [crudModalMode, setCrudModalMode] = useState('edit');
+  const [crudModalViewKey, setCrudModalViewKey] = useState('');
+  const [crudModalRowId, setCrudModalRowId] = useState('');
+  const [crudFormValues, setCrudFormValues] = useState({});
+  const [crudFormError, setCrudFormError] = useState('');
+  const [isSubmittingCrudForm, setIsSubmittingCrudForm] = useState(false);
+  const [isDeletingCrudRow, setIsDeletingCrudRow] = useState(false);
   const isEditActionInProgress = isSavingImageEdit || isDeletingImage;
+  const isCrudActionInProgress = isSubmittingCrudForm || isDeletingCrudRow;
 
   const hasUserSearch = appliedUserSearch.trim().length >= MIN_SEARCH_LENGTH;
   const hasCaptionSearch = appliedCaptionSearch.trim().length >= MIN_SEARCH_LENGTH;
@@ -408,12 +613,40 @@ export default function AdminDataPanels({
     !hasCaptionSearch && (isDataLoading || (captions.length > 0 && defaultCaptions.length === 0));
   const showImagesIndexing =
     !hasImageSearch && (isDataLoading || (images.length > 0 && defaultImages.length === 0));
+  const activeReadOnlyViewKey = useMemo(() => {
+    if (panelMode === 'users' && activeUsersSubMode !== 'users') {
+      return activeUsersSubMode;
+    }
 
-  const showUsersPanel = panelMode === 'overview' || panelMode === 'users';
-  const showCaptionsPanel = panelMode === 'overview' || panelMode === 'captions';
-  const showImagesPanel = panelMode === 'overview' || panelMode === 'images';
-  const usersPanelClassName = `${styles.panel}${panelMode === 'users' ? ` ${styles.widePanel}` : ''}`;
-  const captionsPanelClassName = `${styles.panel}${panelMode === 'captions' ? ` ${styles.widePanel}` : ''}`;
+    if (panelMode === 'captions' && activeCaptionsSubMode !== 'captions') {
+      return activeCaptionsSubMode;
+    }
+
+    if (panelMode === 'humorFlavors') {
+      return activeHumorSubMode;
+    }
+
+    if (panelMode === 'llms') {
+      return activeLlmsSubMode;
+    }
+
+    return null;
+  }, [activeCaptionsSubMode, activeHumorSubMode, activeLlmsSubMode, activeUsersSubMode, panelMode]);
+  const activeReadOnlySearch = useMemo(() => {
+    if (!activeReadOnlyViewKey) {
+      return '';
+    }
+
+    const appliedQuery = toDisplayText(appliedReadOnlySearchByView[activeReadOnlyViewKey]) ?? '';
+    return appliedQuery.length >= MIN_SEARCH_LENGTH ? appliedQuery : '';
+  }, [activeReadOnlyViewKey, appliedReadOnlySearchByView]);
+  const activeReadOnlyRefreshToken = useMemo(() => {
+    if (!activeReadOnlyViewKey) {
+      return 0;
+    }
+
+    return readOnlyRefreshTokenByView[activeReadOnlyViewKey] ?? 0;
+  }, [activeReadOnlyViewKey, readOnlyRefreshTokenByView]);
 
   useEffect(() => {
     setIsClient(true);
@@ -421,6 +654,78 @@ export default function AdminDataPanels({
       setIsClient(false);
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeReadOnlyViewKey || !READ_ONLY_TABLE_CONFIG[activeReadOnlyViewKey]) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function fetchReadOnlyRows() {
+      setIsReadOnlyLoadingByView((currentLoading) => ({
+        ...currentLoading,
+        [activeReadOnlyViewKey]: true,
+      }));
+      setReadOnlyErrorsByView((currentErrors) => ({
+        ...currentErrors,
+        [activeReadOnlyViewKey]: '',
+      }));
+
+      try {
+        const requestUrl = new URL('/api/admin/table-data', window.location.origin);
+        requestUrl.searchParams.set('view', activeReadOnlyViewKey);
+
+        if (activeReadOnlySearch.length >= MIN_SEARCH_LENGTH) {
+          requestUrl.searchParams.set('q', activeReadOnlySearch);
+        }
+
+        const response = await fetch(requestUrl.pathname + requestUrl.search, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? 'Could not load table data.');
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+        setReadOnlyRowsByView((currentRows) => ({
+          ...currentRows,
+          [activeReadOnlyViewKey]: rows,
+        }));
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        setReadOnlyErrorsByView((currentErrors) => ({
+          ...currentErrors,
+          [activeReadOnlyViewKey]: error?.message ?? 'Could not load table data.',
+        }));
+      } finally {
+        if (isCancelled) {
+          return;
+        }
+
+        setIsReadOnlyLoadingByView((currentLoading) => ({
+          ...currentLoading,
+          [activeReadOnlyViewKey]: false,
+        }));
+      }
+    }
+
+    void fetchReadOnlyRows();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeReadOnlySearch, activeReadOnlyRefreshToken, activeReadOnlyViewKey]);
 
   useEffect(() => {
     if (!addImageSelectedFile) {
@@ -477,6 +782,25 @@ export default function AdminDataPanels({
   }, [isEditActionInProgress, isEditImageModalOpen]);
 
   useEffect(() => {
+    if (!isCrudModalOpen) {
+      return undefined;
+    }
+
+    function handleEscape(event) {
+      if (event.key !== 'Escape' || isCrudActionInProgress) {
+        return;
+      }
+
+      closeCrudModal();
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isCrudActionInProgress, isCrudModalOpen]);
+
+  useEffect(() => {
     if (!isEditImageModalOpen) {
       return;
     }
@@ -503,11 +827,205 @@ export default function AdminDataPanels({
     setAppliedImageSearch(query.length >= MIN_SEARCH_LENGTH ? query : '');
   }
 
+  function handleReadOnlySearchInputChange(viewKey, nextValue) {
+    setReadOnlySearchInputByView((currentSearchInputs) => ({
+      ...currentSearchInputs,
+      [viewKey]: nextValue,
+    }));
+  }
+
+  function submitReadOnlySearch(event, viewKey) {
+    event.preventDefault();
+
+    const nextQuery = toDisplayText(readOnlySearchInputByView[viewKey]) ?? '';
+    setAppliedReadOnlySearchByView((currentAppliedSearch) => ({
+      ...currentAppliedSearch,
+      [viewKey]: nextQuery.length >= MIN_SEARCH_LENGTH ? nextQuery : '',
+    }));
+  }
+
+  function refreshReadOnlyView(viewKey) {
+    if (!viewKey) {
+      return;
+    }
+
+    setReadOnlyRefreshTokenByView((currentTokens) => ({
+      ...currentTokens,
+      [viewKey]: (currentTokens[viewKey] ?? 0) + 1,
+    }));
+  }
+
+  function openCreateCrudModal(viewKey) {
+    const mutableConfig = getMutableReadOnlyConfig(viewKey);
+    if (!mutableConfig?.canCreate) {
+      return;
+    }
+
+    setCrudModalMode('create');
+    setCrudModalViewKey(viewKey);
+    setCrudModalRowId('');
+    setCrudFormValues(createReadOnlyCrudFormValues(viewKey));
+    setCrudFormError('');
+    setIsCrudModalOpen(true);
+  }
+
+  function openEditCrudModal(viewKey, row) {
+    const mutableConfig = getMutableReadOnlyConfig(viewKey);
+    if (!mutableConfig) {
+      return;
+    }
+
+    const rowId = toDisplayText(row?.id);
+    if (!rowId) {
+      return;
+    }
+
+    setCrudModalMode('edit');
+    setCrudModalViewKey(viewKey);
+    setCrudModalRowId(rowId);
+    setCrudFormValues(createReadOnlyCrudFormValues(viewKey, row));
+    setCrudFormError('');
+    setIsCrudModalOpen(true);
+  }
+
+  function closeCrudModal(force = false) {
+    if (!force && isCrudActionInProgress) {
+      return;
+    }
+
+    setIsCrudModalOpen(false);
+    setCrudModalMode('edit');
+    setCrudModalViewKey('');
+    setCrudModalRowId('');
+    setCrudFormValues({});
+    setCrudFormError('');
+  }
+
+  function handleCrudModalBackdropClick(event) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    closeCrudModal();
+  }
+
+  function handleCrudInputChange(event) {
+    const { name, type, checked, value } = event.target;
+    setCrudFormValues((currentValues) => ({
+      ...currentValues,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
+  }
+
+  async function submitCrudForm(event) {
+    event.preventDefault();
+
+    if (isCrudActionInProgress) {
+      return;
+    }
+
+    const mutableConfig = getMutableReadOnlyConfig(crudModalViewKey);
+    if (!mutableConfig) {
+      setCrudFormError('This table does not support editing.');
+      return;
+    }
+
+    if (crudModalMode === 'create' && !mutableConfig.canCreate) {
+      setCrudFormError('This table does not support creating rows.');
+      return;
+    }
+
+    if (crudModalMode === 'edit' && !toDisplayText(crudModalRowId)) {
+      setCrudFormError('Row id is missing.');
+      return;
+    }
+
+    setIsSubmittingCrudForm(true);
+    setCrudFormError('');
+
+    try {
+      const requestBody = {
+        view: crudModalViewKey,
+        values: crudFormValues,
+      };
+
+      if (crudModalMode === 'edit') {
+        requestBody.id = crudModalRowId;
+      }
+
+      const response = await fetch('/api/admin/table-data', {
+        method: crudModalMode === 'create' ? 'POST' : 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Could not save row.');
+      }
+
+      closeCrudModal(true);
+      refreshReadOnlyView(crudModalViewKey);
+    } catch (error) {
+      setCrudFormError(error?.message ?? 'Could not save row.');
+    } finally {
+      setIsSubmittingCrudForm(false);
+    }
+  }
+
+  async function deleteCrudRow() {
+    if (isCrudActionInProgress) {
+      return;
+    }
+
+    const mutableConfig = getMutableReadOnlyConfig(crudModalViewKey);
+    if (!mutableConfig?.canDelete) {
+      setCrudFormError('This table does not support deleting rows.');
+      return;
+    }
+
+    const rowId = toDisplayText(crudModalRowId);
+    if (!rowId) {
+      setCrudFormError('Row id is missing.');
+      return;
+    }
+
+    const isConfirmed = window.confirm('Delete this row? This cannot be undone.');
+    if (!isConfirmed) {
+      return;
+    }
+
+    setIsDeletingCrudRow(true);
+    setCrudFormError('');
+
+    try {
+      const response = await fetch(
+        `/api/admin/table-data?view=${encodeURIComponent(crudModalViewKey)}&id=${encodeURIComponent(rowId)}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Could not delete row.');
+      }
+
+      closeCrudModal(true);
+      refreshReadOnlyView(crudModalViewKey);
+    } catch (error) {
+      setCrudFormError(error?.message ?? 'Could not delete row.');
+    } finally {
+      setIsDeletingCrudRow(false);
+    }
+  }
+
   function handleOpenAddImageModal() {
     setIsAddImageModalOpen(true);
     setAddImageError('');
     setAddImageSelectedFile(null);
-    setAddImageStatusMessage('Select an image file to upload.');
     setAddImageFormValues(createInitialImageFormValues());
   }
 
@@ -519,7 +1037,6 @@ export default function AdminDataPanels({
     setIsAddImageModalOpen(false);
     setAddImageError('');
     setAddImageSelectedFile(null);
-    setAddImageStatusMessage('Select an image file to upload.');
     setAddImageFormValues(createInitialImageFormValues());
   }
 
@@ -543,7 +1060,6 @@ export default function AdminDataPanels({
     const nextFile = event.target.files?.[0] ?? null;
     setAddImageSelectedFile(nextFile);
     setAddImageError('');
-    setAddImageStatusMessage(nextFile ? 'Image selected. Ready to upload.' : 'Select an image file to upload.');
   }
 
   function handleOpenEditImageModal(image) {
@@ -581,45 +1097,6 @@ export default function AdminDataPanels({
     }));
   }
 
-  async function fetchAdminImageById(imageId) {
-    const response = await fetch(`/api/admin/images?id=${encodeURIComponent(imageId)}`, {
-      method: 'GET',
-      cache: 'no-store',
-    });
-
-    const payload = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      throw new Error(payload?.error ?? 'Could not fetch uploaded image record.');
-    }
-
-    return payload?.image ?? null;
-  }
-
-  async function waitForGeneratedImageMetadata(imageId) {
-    const maxAttempts = 24;
-    const delayMilliseconds = 1500;
-    let latestImage = null;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-      try {
-        latestImage = await fetchAdminImageById(imageId);
-      } catch {
-        latestImage = null;
-      }
-
-      if (hasGeneratedImageMetadata(latestImage)) {
-        return latestImage;
-      }
-
-      if (attempt < maxAttempts - 1) {
-        await sleep(delayMilliseconds);
-      }
-    }
-
-    return latestImage;
-  }
-
   async function submitAddImage(event) {
     event.preventDefault();
 
@@ -651,7 +1128,6 @@ export default function AdminDataPanels({
         throw new Error('No JWT access token found. Please sign in again.');
       }
 
-      setAddImageStatusMessage('Generating upload URL...');
       const presignedData = await postJson(
         '/pipeline/generate-presigned-url',
         token,
@@ -659,7 +1135,6 @@ export default function AdminDataPanels({
         'Could not generate upload URL.'
       );
 
-      setAddImageStatusMessage('Uploading image...');
       const uploadResponse = await fetch(presignedData.presignedUrl, {
         method: 'PUT',
         headers: {
@@ -672,7 +1147,6 @@ export default function AdminDataPanels({
         throw new Error(await getResponseErrorMessage(uploadResponse, 'Could not upload the image bytes.'));
       }
 
-      setAddImageStatusMessage('Registering uploaded image...');
       const registrationData = await postJson(
         '/pipeline/upload-image-from-url',
         token,
@@ -688,18 +1162,6 @@ export default function AdminDataPanels({
         throw new Error('Image upload succeeded, but no image id was returned.');
       }
 
-      setAddImageStatusMessage('Running caption pipeline...');
-      await postJson(
-        '/pipeline/generate-captions',
-        token,
-        {
-          imageId,
-          numCaptions: 0,
-        },
-        'Could not run caption pipeline.'
-      );
-
-      setAddImageStatusMessage('Finalizing image settings...');
       const finalizeResponse = await fetch('/api/admin/images', {
         method: 'PATCH',
         headers: {
@@ -717,10 +1179,7 @@ export default function AdminDataPanels({
         throw new Error(finalizePayload?.error ?? 'Could not finalize image settings.');
       }
 
-      setAddImageStatusMessage('Generating description and recognition...');
-      const generatedImage = await waitForGeneratedImageMetadata(imageId);
       const nextImage =
-        generatedImage ??
         finalizePayload?.image ?? {
           id: imageId,
           url: presignedData.cdnUrl,
@@ -734,13 +1193,11 @@ export default function AdminDataPanels({
         onImageAdded(nextImage);
       }
 
-      setAddImageStatusMessage('Image uploaded successfully.');
       setAddImageSelectedFile(null);
       setAddImageFormValues(createInitialImageFormValues());
       setIsAddImageModalOpen(false);
     } catch (error) {
       setAddImageError(error?.message ?? 'Unable to add image.');
-      setAddImageStatusMessage('Image upload failed.');
     } finally {
       setIsSubmittingImage(false);
     }
@@ -894,7 +1351,6 @@ export default function AdminDataPanels({
             </label>
           </div>
 
-          <p className={styles.formStatus}>{addImageStatusMessage}</p>
           {addImageError ? <p className={styles.formError}>{addImageError}</p> : null}
 
           <div className={styles.modalActions}>
@@ -1015,18 +1471,269 @@ export default function AdminDataPanels({
       </div>
     </div>
   ) : null;
+  const activeCrudModalConfig = getMutableReadOnlyConfig(crudModalViewKey);
+  const crudModal = isCrudModalOpen && activeCrudModalConfig ? (
+    <div className={styles.modalBackdrop} onClick={handleCrudModalBackdropClick}>
+      <div className={styles.modalCard} role="dialog" aria-modal="true" aria-labelledby="crud-modal-title">
+        <div className={styles.modalHeader}>
+          <h3 id="crud-modal-title" className={styles.modalTitle}>
+            {crudModalMode === 'create' ? `Create ${READ_ONLY_TABLE_CONFIG[crudModalViewKey]?.title ?? 'Row'}` : `Edit ${READ_ONLY_TABLE_CONFIG[crudModalViewKey]?.title ?? 'Row'}`}
+          </h3>
+        </div>
 
-  return (
-    <section className={`${styles.wrapper} ${panelMode !== 'overview' ? styles.flushTop : ''}`}>
-      {showUsersPanel ? (
-        <article className={usersPanelClassName}>
+        <form className={styles.modalForm} onSubmit={submitCrudForm}>
+          {crudModalMode === 'edit' ? (
+            <p className={`${styles.editMetaText} ${styles.editMetaTextCentered}`}>id: {crudModalRowId}</p>
+          ) : null}
+
+          {activeCrudModalConfig.fields.map((field) => {
+            const fieldValue = crudFormValues[field.key];
+
+            if (field.type === 'boolean') {
+              return (
+                <label key={field.key} className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name={field.key}
+                    checked={fieldValue === true}
+                    onChange={handleCrudInputChange}
+                    className={styles.checkboxInput}
+                  />
+                  <span>{field.label}</span>
+                </label>
+              );
+            }
+
+            if (field.type === 'textarea') {
+              return (
+                <label key={field.key} className={styles.formField}>
+                  <span className={styles.fieldLabel}>{field.label}</span>
+                  <textarea
+                    name={field.key}
+                    value={fieldValue ?? ''}
+                    onChange={handleCrudInputChange}
+                    rows={3}
+                    className={styles.formTextarea}
+                  />
+                </label>
+              );
+            }
+
+            return (
+              <label key={field.key} className={styles.formField}>
+                <span className={styles.fieldLabel}>{field.label}</span>
+                <input
+                  type={field.type === 'number' ? 'number' : 'text'}
+                  name={field.key}
+                  value={fieldValue ?? ''}
+                  onChange={handleCrudInputChange}
+                  className={styles.formInput}
+                />
+              </label>
+            );
+          })}
+
+          {crudFormError ? <p className={styles.formError}>{crudFormError}</p> : null}
+
+          <div className={styles.modalActions}>
+            <button
+              type="button"
+              className={styles.modalSecondaryButton}
+              onClick={closeCrudModal}
+              disabled={isCrudActionInProgress}
+            >
+              Cancel
+            </button>
+            {crudModalMode === 'edit' && activeCrudModalConfig.canDelete ? (
+              <button
+                type="button"
+                className={styles.modalDeleteButton}
+                onClick={deleteCrudRow}
+                disabled={isCrudActionInProgress}
+              >
+                {isDeletingCrudRow ? 'Deleting...' : 'Delete row'}
+              </button>
+            ) : null}
+            <button type="submit" className={styles.modalSuccessButton} disabled={isCrudActionInProgress}>
+              {isSubmittingCrudForm
+                ? crudModalMode === 'create'
+                  ? 'Creating...'
+                  : 'Saving...'
+                : crudModalMode === 'create'
+                  ? 'Create row'
+                  : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  ) : null;
+
+  function renderSubModeSwitcher(options, activeMode, setActiveMode, ariaLabel) {
+    const activeIndex = options.findIndex((option) => option.id === activeMode);
+
+    return (
+      <div className={styles.subModeRoot}>
+        <div
+          className={styles.subModeTrack}
+          role="tablist"
+          aria-label={ariaLabel}
+          style={{ '--sub-mode-option-count': options.length }}
+        >
+          <div className={styles.subModeGrid}>
+            <span
+              aria-hidden
+              className={styles.subModeThumb}
+              style={{ transform: `translateX(${Math.max(activeIndex, 0) * 100}%)` }}
+            />
+            {options.map((option) => {
+              const isActive = option.id === activeMode;
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`${styles.subModeButton} ${isActive ? styles.subModeButtonActive : ''}`}
+                  onClick={() => setActiveMode(option.id)}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderReadOnlyTable(viewKey) {
+    const config = READ_ONLY_TABLE_CONFIG[viewKey];
+
+    if (!config) {
+      return <p className={styles.emptyText}>No table configuration found.</p>;
+    }
+
+    const rows = Array.isArray(readOnlyRowsByView[viewKey]) ? readOnlyRowsByView[viewKey] : [];
+    const isLoading = isReadOnlyLoadingByView[viewKey] === true;
+    const loadError = toDisplayText(readOnlyErrorsByView[viewKey]);
+    const searchInputValue = readOnlySearchInputByView[viewKey] ?? '';
+    const appliedSearchValue = toDisplayText(appliedReadOnlySearchByView[viewKey]) ?? '';
+    const hasAppliedSearch = appliedSearchValue.length >= MIN_SEARCH_LENGTH;
+    const mutableConfig = getMutableReadOnlyConfig(viewKey);
+    const canEditRows = Boolean(mutableConfig);
+    const canCreateRows = mutableConfig?.canCreate === true;
+    const accessLabel = getReadOnlyViewAccessLabel(viewKey);
+    const countLabel = hasAppliedSearch ? String(rows.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+
+    return (
+      <div className={styles.subModeContent}>
+        <div className={styles.header}>
+          <h2 className={styles.title}>{config.title}</h2>
+          <div className={styles.readOnlyMetaBlock}>
+            {canCreateRows ? (
+              <button type="button" className={styles.addButton} onClick={() => openCreateCrudModal(viewKey)}>
+                Add row
+              </button>
+            ) : null}
+            {!isLoading ? (
+              <div className={styles.countAccessRow}>
+                <p className={styles.count}>{countLabel}</p>
+                <p className={styles.accessText}>{accessLabel}</p>
+              </div>
+            ) : null}
+            {canEditRows ? <p className={styles.imagesHint}>Click row to modify</p> : null}
+          </div>
+        </div>
+
+        <form className={styles.searchRow} onSubmit={(event) => submitReadOnlySearch(event, viewKey)}>
+          <input
+            type="search"
+            value={searchInputValue}
+            onChange={(event) => handleReadOnlySearchInputChange(viewKey, event.target.value)}
+            placeholder={`Search ${config.title.toLowerCase()} (3 characters minimum)`}
+            className={styles.searchInput}
+          />
+          <button type="submit" className={styles.searchButton}>
+            Search
+          </button>
+        </form>
+
+        {isLoading ? (
+          <p className={styles.emptyText}>indexing...</p>
+        ) : loadError ? (
+          <p className={styles.emptyText}>{loadError}</p>
+        ) : rows.length > 0 ? (
+          <div className={styles.tableScrollWrap}>
+            <table className={styles.dataTable}>
+              <thead>
+                <tr>
+                  {config.columns.map((column) => (
+                    <th key={column} className={styles.dataTableHeaderCell}>
+                      {formatColumnLabel(column)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, rowIndex) => {
+                  const rowKey = toDisplayText(row?.id) ?? `${viewKey}-${rowIndex}`;
+
+                  return (
+                    <tr
+                      key={rowKey}
+                      className={canEditRows ? styles.dataTableRowEditable : ''}
+                      onClick={canEditRows ? () => openEditCrudModal(viewKey, row) : undefined}
+                      onKeyDown={
+                        canEditRows
+                          ? (event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                openEditCrudModal(viewKey, row);
+                              }
+                            }
+                          : undefined
+                      }
+                      tabIndex={canEditRows ? 0 : undefined}
+                    >
+                      {config.columns.map((column) => {
+                        const cellValue = formatReadOnlyCellValue(row?.[column]);
+
+                        return (
+                          <td key={`${rowKey}-${column}`} className={styles.dataTableCell}>
+                            <span className={styles.dataTableCellText} title={cellValue}>
+                              {cellValue}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className={styles.emptyText}>No rows found.</p>
+        )}
+      </div>
+    );
+  }
+
+  function renderUsersListContent() {
+    const countLabel = hasUserSearch ? String(filteredUsers.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+
+    return (
+      <div className={styles.subModeContent}>
         <div className={styles.header}>
           <h2 className={styles.title}>Users</h2>
-          {hasUserSearch ? (
-            <p className={styles.count}>{filteredUsers.length}</p>
-          ) : (
-            <p className={styles.count}>Displaying 100</p>
-          )}
+          <div className={styles.readOnlyMetaBlock}>
+            <div className={styles.countAccessRow}>
+              <p className={styles.count}>{countLabel}</p>
+              <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
+            </div>
+          </div>
         </div>
 
         <form className={styles.searchRow} onSubmit={submitUserSearch}>
@@ -1063,9 +1770,7 @@ export default function AdminDataPanels({
                       </p>
                     </div>
                   ) : null}
-                  {!rightSubText && leftSubText ? (
-                    <p className={styles.secondaryText}>{leftSubText}</p>
-                  ) : null}
+                  {!rightSubText && leftSubText ? <p className={styles.secondaryText}>{leftSubText}</p> : null}
                 </div>
               );
             })
@@ -1073,18 +1778,23 @@ export default function AdminDataPanels({
             <p className={styles.emptyText}>No users found.</p>
           )}
         </div>
-      </article>
-      ) : null}
+      </div>
+    );
+  }
 
-      {showCaptionsPanel ? (
-        <article className={captionsPanelClassName}>
+  function renderCaptionsListContent() {
+    const countLabel = hasCaptionSearch ? String(filteredCaptions.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+
+    return (
+      <div className={styles.subModeContent}>
         <div className={styles.header}>
           <h2 className={styles.title}>Captions</h2>
-          {hasCaptionSearch ? (
-            <p className={styles.count}>{filteredCaptions.length}</p>
-          ) : (
-            <p className={styles.count}>Displaying 100</p>
-          )}
+          <div className={styles.readOnlyMetaBlock}>
+            <div className={styles.countAccessRow}>
+              <p className={styles.count}>{countLabel}</p>
+              <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
+            </div>
+          </div>
         </div>
 
         <form className={styles.searchRow} onSubmit={submitCaptionSearch}>
@@ -1111,12 +1821,7 @@ export default function AdminDataPanels({
               return (
                 <div key={caption.id} className={`${styles.listItem} ${styles.captionListItem}`}>
                   {captionThumbnailUrl ? (
-                    <img
-                      src={captionThumbnailUrl}
-                      alt="Caption image"
-                      loading="lazy"
-                      className={styles.captionThumb}
-                    />
+                    <img src={captionThumbnailUrl} alt="Caption image" loading="lazy" className={styles.captionThumb} />
                   ) : (
                     <div className={styles.captionThumbPlaceholder}>No image</div>
                   )}
@@ -1124,9 +1829,7 @@ export default function AdminDataPanels({
                     <p className={styles.primaryText}>{captionText ?? '[no caption content]'}</p>
                     <p className={styles.secondaryText}>id: {caption.id}</p>
                     <p className={styles.secondaryText}>user: {caption.profile_id}</p>
-                    {isPublicCaption(caption) ? (
-                      <span className={`${styles.badge} ${styles.publicBadge}`}>public</span>
-                    ) : null}
+                    {isPublicCaption(caption) ? <span className={`${styles.badge} ${styles.publicBadge}`}>public</span> : null}
                   </div>
                 </div>
               );
@@ -1135,11 +1838,15 @@ export default function AdminDataPanels({
             <p className={styles.emptyText}>No captions found.</p>
           )}
         </div>
-      </article>
-      ) : null}
+      </div>
+    );
+  }
 
-      {showImagesPanel ? (
-        <article className={`${styles.panel} ${styles.widePanel}`}>
+  function renderImagesPanel() {
+    const countLabel = hasImageSearch ? String(filteredImages.length) : `Displaying ${DEFAULT_IMAGE_COUNT}`;
+
+    return (
+      <article className={`${styles.panel} ${styles.widePanel}`}>
         <div className={`${styles.header} ${styles.imagesHeader}`}>
           <div className={styles.imagesHeaderLeft}>
             <h2 className={styles.title}>Images</h2>
@@ -1148,11 +1855,10 @@ export default function AdminDataPanels({
             </button>
           </div>
           <div className={styles.imagesCountBlock}>
-            {hasImageSearch ? (
-              <p className={styles.count}>{filteredImages.length}</p>
-            ) : (
-              <p className={styles.count}>Displaying {DEFAULT_IMAGE_COUNT}</p>
-            )}
+            <div className={styles.countAccessRow}>
+              <p className={styles.count}>{countLabel}</p>
+              <p className={styles.accessText}>{CRUD_ACCESS_LABEL}</p>
+            </div>
             <p className={styles.imagesHint}>Click on image to modify</p>
           </div>
         </div>
@@ -1186,12 +1892,7 @@ export default function AdminDataPanels({
                     onClick={() => handleOpenEditImageModal(image)}
                   >
                     {image.url ? (
-                      <img
-                        src={image.url}
-                        alt={imageDescription}
-                        loading="lazy"
-                        className={styles.imagePreview}
-                      />
+                      <img src={image.url} alt={imageDescription} loading="lazy" className={styles.imagePreview} />
                     ) : (
                       <div className={styles.imagePlaceholder}>No image URL</div>
                     )}
@@ -1206,9 +1907,59 @@ export default function AdminDataPanels({
           )}
         </div>
       </article>
-      ) : null}
+    );
+  }
+
+  let modeBody = null;
+
+  if (panelMode === 'users') {
+    modeBody = (
+      <article className={`${styles.panel} ${styles.widePanel}`}>
+        {renderSubModeSwitcher(USERS_SUB_MODE_OPTIONS, activeUsersSubMode, setActiveUsersSubMode, 'Users data mode')}
+        {activeUsersSubMode === 'users' ? renderUsersListContent() : renderReadOnlyTable(activeUsersSubMode)}
+      </article>
+    );
+  } else if (panelMode === 'captions') {
+    modeBody = (
+      <article className={`${styles.panel} ${styles.widePanel}`}>
+        {renderSubModeSwitcher(
+          CAPTIONS_SUB_MODE_OPTIONS,
+          activeCaptionsSubMode,
+          setActiveCaptionsSubMode,
+          'Captions data mode'
+        )}
+        {activeCaptionsSubMode === 'captions' ? renderCaptionsListContent() : renderReadOnlyTable(activeCaptionsSubMode)}
+      </article>
+    );
+  } else if (panelMode === 'humorFlavors') {
+    modeBody = (
+      <article className={`${styles.panel} ${styles.widePanel}`}>
+        {renderSubModeSwitcher(
+          HUMOR_FLAVORS_SUB_MODE_OPTIONS,
+          activeHumorSubMode,
+          setActiveHumorSubMode,
+          'Humor flavors data mode'
+        )}
+        {renderReadOnlyTable(activeHumorSubMode)}
+      </article>
+    );
+  } else if (panelMode === 'llms') {
+    modeBody = (
+      <article className={`${styles.panel} ${styles.widePanel}`}>
+        {renderSubModeSwitcher(LLMS_SUB_MODE_OPTIONS, activeLlmsSubMode, setActiveLlmsSubMode, 'LLM data mode')}
+        {renderReadOnlyTable(activeLlmsSubMode)}
+      </article>
+    );
+  } else if (panelMode === 'images') {
+    modeBody = renderImagesPanel();
+  }
+
+  return (
+    <section className={`${styles.wrapper} ${panelMode !== 'overview' ? styles.flushTop : ''}`}>
+      {modeBody}
       {isClient && addImageModal ? createPortal(addImageModal, document.body) : null}
       {isClient && editImageModal ? createPortal(editImageModal, document.body) : null}
+      {isClient && crudModal ? createPortal(crudModal, document.body) : null}
     </section>
   );
 }

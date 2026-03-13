@@ -67,7 +67,7 @@
   left: 50%;
   transform: translateX(-50%);
   z-index: 100;
-  width: min(calc(100vw - 2rem), 28rem);
+  width: min(calc(100vw - 1rem), 44rem);
 }
 
 .modeSegmentTrack {
@@ -82,9 +82,9 @@
 .modeSegmentGrid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--mode-option-count, 4), minmax(0, 1fr));
   align-items: stretch;
-  height: 2.2rem;
+  min-height: 2.45rem;
 }
 
 .modeSegmentThumb {
@@ -93,7 +93,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  width: 25%;
+  width: calc(100% / var(--mode-option-count, 4));
   border-radius: 9999px;
   background: #ffffff;
   box-shadow:
@@ -109,13 +109,14 @@
   border-radius: 9999px;
   background: transparent;
   color: #475569;
-  font-size: 0.82rem;
-  line-height: 1.2;
+  font-size: 0.7rem;
+  line-height: 1.08;
   letter-spacing: -0.01em;
   font-weight: 500;
-  padding: 0.3rem 0.28rem;
+  padding: 0.28rem 0.2rem;
   cursor: pointer;
   transition: color 180ms ease;
+  text-align: center;
 }
 
 .modeSegmentButtonActive {
@@ -374,15 +375,15 @@
 
   .modeMenuRoot {
     top: 1.5rem;
-    width: min(calc(100vw - 3rem), 28rem);
+    width: min(calc(100vw - 3rem), 44rem);
   }
 
   .modeSegmentGrid {
-    height: 2.2rem;
+    min-height: 2.45rem;
   }
 
   .modeSegmentButton {
-    font-size: 0.86rem;
+    font-size: 0.76rem;
   }
 
   .loadingLabel {

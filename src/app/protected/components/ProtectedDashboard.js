@@ -52,6 +52,8 @@ const MODE_OPTIONS = [
   { id: 'users', label: 'Users' },
   { id: 'captions', label: 'Captions' },
   { id: 'images', label: 'Images' },
+  { id: 'humorFlavors', label: 'Humor Flavors' },
+  { id: 'llms', label: 'LLMs' },
 ];
 const MODE_FADE_DURATION_MS = 260;
 
@@ -251,7 +253,12 @@ export default function ProtectedDashboard() {
     <>
       {!isLoading ? (
         <div className={styles.modeMenuRoot}>
-          <div className={styles.modeSegmentTrack} role="tablist" aria-label="Dashboard mode">
+          <div
+            className={styles.modeSegmentTrack}
+            role="tablist"
+            aria-label="Dashboard mode"
+            style={{ '--mode-option-count': MODE_OPTIONS.length }}
+          >
             <div className={styles.modeSegmentGrid}>
               <span
                 aria-hidden

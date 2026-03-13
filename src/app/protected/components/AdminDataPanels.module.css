@@ -45,6 +45,146 @@
   color: #64748b;
 }
 
+.countAccessRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.accessText {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.readOnlyMetaBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.18rem;
+}
+
+.subModeRoot {
+  margin-bottom: 0.85rem;
+}
+
+.subModeTrack {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  background: rgb(226 232 240 / 0.9);
+  padding: 0.2rem;
+}
+
+.subModeGrid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--sub-mode-option-count, 3), minmax(0, 1fr));
+  align-items: stretch;
+  min-height: 2.1rem;
+}
+
+.subModeThumb {
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(100% / var(--sub-mode-option-count, 3));
+  border-radius: 9999px;
+  background: #ffffff;
+  box-shadow:
+    0 8px 16px -12px rgb(15 23 42 / 0.35),
+    inset 0 0 0 1px rgb(15 23 42 / 0.08);
+  transition: transform 220ms cubic-bezier(0.2, 0.78, 0.18, 1);
+}
+
+.subModeButton {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.7rem;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  font-weight: 500;
+  padding: 0.28rem 0.2rem;
+  cursor: pointer;
+  transition: color 180ms ease;
+  text-align: center;
+}
+
+.subModeButtonActive {
+  color: #0f172a;
+}
+
+.subModeContent {
+  margin-top: 0.35rem;
+}
+
+.tableScrollWrap {
+  margin-top: 0.65rem;
+  width: 100%;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.8rem;
+  background: #f8fafc;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 42rem;
+}
+
+.dataTableHeaderCell {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f1f5f9;
+  color: #334155;
+  text-align: left;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  padding: 0.52rem 0.62rem;
+  border-bottom: 1px solid #dbe3ed;
+  white-space: nowrap;
+}
+
+.dataTableCell {
+  padding: 0.52rem 0.62rem;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+
+.dataTableCellText {
+  display: block;
+  color: #0f172a;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.dataTableRowEditable {
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.dataTableRowEditable:hover {
+  background: #fee2e2;
+}
+
+.dataTableRowEditable:focus-visible {
+  outline: 2px solid rgb(248 113 113 / 0.8);
+  outline-offset: -2px;
+}
+
 .imagesCountBlock {
   display: flex;
   flex-direction: column;
@@ -688,6 +828,10 @@
   .title {
     font-size: 2rem;
   }
+
+  .subModeButton {
+    font-size: 0.76rem;
+  }
 }
 
 :global(html.dark) .panel {
@@ -701,6 +845,34 @@
 
 :global(html.dark) .count {
   color: #cbd5e1;
+}
+
+:global(html.dark) .accessText {
+  color: #cbd5e1;
+}
+
+:global(html.dark) .readOnlyMetaBlock {
+  color: #cbd5e1;
+}
+
+:global(html.dark) .subModeTrack {
+  border-color: rgb(255 255 255 / 0.16);
+  background: rgb(30 30 36 / 0.82);
+}
+
+:global(html.dark) .subModeThumb {
+  background: #050505;
+  box-shadow:
+    0 10px 22px -12px rgb(0 0 0 / 0.9),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+:global(html.dark) .subModeButton {
+  color: #dbe3ed;
+}
+
+:global(html.dark) .subModeButtonActive {
+  color: #ffffff;
 }
 
 :global(html.dark) .imagesHint {
@@ -838,6 +1010,29 @@
 :global(html.dark) .listItem {
   border-color: rgb(255 255 255 / 0.1);
   background: rgb(15 15 15 / 0.7);
+}
+
+:global(html.dark) .tableScrollWrap {
+  border-color: rgb(255 255 255 / 0.14);
+  background: rgb(12 12 12 / 0.8);
+}
+
+:global(html.dark) .dataTableHeaderCell {
+  background: rgb(20 20 20 / 0.95);
+  color: #e2e8f0;
+  border-bottom-color: rgb(255 255 255 / 0.14);
+}
+
+:global(html.dark) .dataTableCell {
+  border-bottom-color: rgb(255 255 255 / 0.1);
+}
+
+:global(html.dark) .dataTableCellText {
+  color: #f8fafc;
+}
+
+:global(html.dark) .dataTableRowEditable:hover {
+  background: rgb(127 29 29 / 0.45);
 }
 
 :global(html.dark) .imagePreview {
