@@ -4,34 +4,38 @@ import { useEffect, useRef, useState } from 'react';
 import styles from './SettingsMenu.module.css';
 
 const THEME_STORAGE_KEY = 'ui-theme';
+const THEME_PREFERENCES = ['system', 'light', 'dark'];
 
-function applyTheme(theme) {
+function getSystemTheme() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return 'light';
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyThemePreference(preference) {
+  const nextPreference = THEME_PREFERENCES.includes(preference) ? preference : 'system';
+  const effectiveTheme = nextPreference === 'system' ? getSystemTheme() : nextPreference;
   const root = document.documentElement;
-  root.classList.toggle('dark', theme === 'dark');
-  root.style.colorScheme = theme;
+  root.classList.toggle('dark', effectiveTheme === 'dark');
+  root.style.colorScheme = effectiveTheme;
+  root.dataset.themePreference = nextPreference;
+  return effectiveTheme;
 }
 
 export default function SettingsMenu({ showSignOut = false, userEmail = null, profileId = null }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [themePreference, setThemePreference] = useState('system');
   const [isSigningOut, setIsSigningOut] = useState(false);
   const panelRef = useRef(null);
   const buttonRef = useRef(null);
 
   useEffect(() => {
-    const htmlElement = document.documentElement;
-    const syncDarkMode = () => {
-      setIsDarkMode(htmlElement.classList.contains('dark'));
-    };
-
-    syncDarkMode();
-
-    const observer = new MutationObserver(syncDarkMode);
-    observer.observe(htmlElement, { attributes: true, attributeFilter: ['class'] });
-
-    return () => {
-      observer.disconnect();
-    };
+    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+    const nextPreference = THEME_PREFERENCES.includes(storedTheme) ? storedTheme : 'system';
+    applyThemePreference(nextPreference);
+    setThemePreference(nextPreference);
   }, []);
 
   useEffect(() => {
@@ -62,11 +66,35 @@ export default function SettingsMenu({ showSignOut = false, userEmail = null, pr
     };
   }, [isOpen]);
 
-  const handleToggleTheme = () => {
-    const nextTheme = isDarkMode ? 'light' : 'dark';
-    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-    applyTheme(nextTheme);
-    setIsDarkMode(nextTheme === 'dark');
+  useEffect(() => {
+    if (themePreference !== 'system') {
+      return;
+    }
+
+    const mediaQueryList = window.matchMedia('(prefers-color-scheme: dark)');
+    const handlePreferenceChange = () => {
+      applyThemePreference('system');
+    };
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handlePreferenceChange);
+    } else {
+      mediaQueryList.addListener(handlePreferenceChange);
+    }
+    return () => {
+      if (typeof mediaQueryList.removeEventListener === 'function') {
+        mediaQueryList.removeEventListener('change', handlePreferenceChange);
+      } else {
+        mediaQueryList.removeListener(handlePreferenceChange);
+      }
+    };
+  }, [themePreference]);
+
+  const handleThemeChange = (nextPreference) => {
+    const normalizedPreference = THEME_PREFERENCES.includes(nextPreference) ? nextPreference : 'system';
+    window.localStorage.setItem(THEME_STORAGE_KEY, normalizedPreference);
+    applyThemePreference(normalizedPreference);
+    setThemePreference(normalizedPreference);
   };
 
   const handleSignOut = async () => {
@@ -102,17 +130,38 @@ export default function SettingsMenu({ showSignOut = false, userEmail = null, pr
       </button>
 
       <div id="settings-panel" ref={panelRef} className={`${styles.panel} ${isOpen ? styles.panelOpen : ''}`}>
-        <div className={styles.toggleRow}>
-          <span className={styles.toggleLabel}>Dark mode</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isDarkMode}
-            onClick={handleToggleTheme}
-            className={`${styles.switchBase} ${isDarkMode ? styles.switchEnabled : styles.switchDisabled}`}
-          >
-            <span className={`${styles.switchThumb} ${isDarkMode ? styles.thumbEnabled : styles.thumbDisabled}`} />
-          </button>
+        <div className={styles.themeOptionsRow}>
+          <span className={styles.toggleLabel}>Theme</span>
+          <div className={styles.themeSegmentTrack} role="radiogroup" aria-label="Theme preference">
+            <div
+              className={styles.themeSegmentGrid}
+              style={{ '--theme-option-count': THEME_PREFERENCES.length }}
+            >
+              <span
+                aria-hidden
+                className={styles.themeSegmentThumb}
+                style={{
+                  transform: `translateX(${Math.max(THEME_PREFERENCES.indexOf(themePreference), 0) * 100}%)`,
+                }}
+              />
+              {THEME_PREFERENCES.map((preference) => {
+                const isActive = themePreference === preference;
+
+                return (
+                  <button
+                    key={preference}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    onClick={() => handleThemeChange(preference)}
+                    className={`${styles.themeSegmentButton} ${isActive ? styles.themeSegmentButtonActive : ''}`}
+                  >
+                    {preference.charAt(0).toUpperCase() + preference.slice(1)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
         {showSignOut ? (
           <>

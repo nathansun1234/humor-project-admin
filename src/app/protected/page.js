@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import SettingsMenu from '../components/SettingsMenu';
+import FloatingPageLabel from './components/FloatingPageLabel';
 import ProtectedDashboard from './components/ProtectedDashboard';
 import styles from './protected.module.css';
 
@@ -18,6 +19,7 @@ export default async function ProtectedPage() {
     <main className={styles.page}>
       <div className={styles.backgroundLayer} />
       <SettingsMenu showSignOut userEmail={user.email ?? null} profileId={user.id} />
+      <FloatingPageLabel text="Admin Panel" />
       <div className={styles.shell}>
         <ProtectedDashboard />
       </div>

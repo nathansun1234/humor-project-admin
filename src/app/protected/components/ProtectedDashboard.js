@@ -62,7 +62,6 @@ export default function ProtectedDashboard() {
   const [dashboardData, setDashboardData] = useState(EMPTY_DASHBOARD);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [loadingDots, setLoadingDots] = useState('.');
   const [activePanelMode, setActivePanelMode] = useState('overview');
   const [renderedPanelMode, setRenderedPanelMode] = useState('overview');
   const [isModeContentVisible, setIsModeContentVisible] = useState(true);
@@ -214,24 +213,6 @@ export default function ProtectedDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
-      return undefined;
-    }
-
-    const dotSequence = ['.', '..', '...', ''];
-    let sequenceIndex = 0;
-
-    const intervalId = window.setInterval(() => {
-      sequenceIndex = (sequenceIndex + 1) % dotSequence.length;
-      setLoadingDots(dotSequence[sequenceIndex]);
-    }, 340);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [isLoading]);
-
-  useEffect(() => {
     return () => {
       clearModeTransitionTimeout();
     };
@@ -286,14 +267,10 @@ export default function ProtectedDashboard() {
         </div>
       ) : null}
 
-      {isLoading ? (
-        <p className={`${styles.pageLabel} ${styles.loadingLabel}`}>
-          Loading
-          <span className={styles.loadingDots}>{loadingDots}</span>
-        </p>
-      ) : null}
-
       <div className={modeContentClassName} style={{ transitionDuration: `${MODE_FADE_DURATION_MS}ms` }}>
+        {isLoading ? (
+          <p className={`${styles.statusMessage} ${styles.statusMessageLoading}`}>Loading admin panel data...</p>
+        ) : null}
         {isOverviewMode ? (
           <>
             <section className={styles.statsPanel}>
