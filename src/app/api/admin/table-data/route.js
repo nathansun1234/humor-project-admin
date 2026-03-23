@@ -149,8 +149,6 @@ const MUTATION_VIEW_CONFIG = {
     },
     canCreate: true,
     canDelete: true,
-    createdAtColumn: 'created_datetime_utc',
-    modifiedAtColumn: 'modified_datetime_utc',
   },
   captionExamples: {
     tableName: 'caption_examples',
@@ -164,8 +162,6 @@ const MUTATION_VIEW_CONFIG = {
     },
     canCreate: true,
     canDelete: true,
-    createdAtColumn: 'created_datetime_utc',
-    modifiedAtColumn: 'modified_datetime_utc',
   },
   llmModels: {
     tableName: 'llm_models',
@@ -178,7 +174,6 @@ const MUTATION_VIEW_CONFIG = {
     },
     canCreate: true,
     canDelete: true,
-    createdAtColumn: 'created_datetime_utc',
   },
   llmProviders: {
     tableName: 'llm_providers',
@@ -188,7 +183,6 @@ const MUTATION_VIEW_CONFIG = {
     },
     canCreate: true,
     canDelete: true,
-    createdAtColumn: 'created_datetime_utc',
   },
   signupDomains: {
     tableName: 'allowed_signup_domains',
@@ -198,7 +192,6 @@ const MUTATION_VIEW_CONFIG = {
     },
     canCreate: true,
     canDelete: true,
-    createdAtColumn: 'created_datetime_utc',
   },
   whitelistedEmails: {
     tableName: 'whitelist_email_addresses',
@@ -208,8 +201,6 @@ const MUTATION_VIEW_CONFIG = {
     },
     canCreate: true,
     canDelete: true,
-    createdAtColumn: 'created_datetime_utc',
-    modifiedAtColumn: 'modified_datetime_utc',
   },
 };
 
@@ -351,20 +342,20 @@ async function getAuthorizedSupabaseClient() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return { supabase: null, errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    return { supabase: null, profileId: null, errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('is_superadmin')
+    .select('id,is_superadmin')
     .eq('id', user.id)
     .maybeSingle();
 
   if (profileError || profile?.is_superadmin !== true) {
-    return { supabase: null, errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+    return { supabase: null, profileId: null, errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 
-  return { supabase, errorResponse: null };
+  return { supabase, profileId: profile.id, errorResponse: null };
 }
 
 export async function GET(request) {
@@ -406,7 +397,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { supabase, errorResponse } = await getAuthorizedSupabaseClient();
+  const { supabase, profileId, errorResponse } = await getAuthorizedSupabaseClient();
   if (errorResponse) {
     return errorResponse;
   }
@@ -442,9 +433,8 @@ export async function POST(request) {
     return NextResponse.json({ error: 'At least one field value is required.' }, { status: 400 });
   }
 
-  if (toDisplayText(mutationConfig.createdAtColumn)) {
-    values[mutationConfig.createdAtColumn] = new Date().toISOString();
-  }
+  values.created_by_user_id = profileId;
+  values.modified_by_user_id = profileId;
 
   const { data, error } = await supabase
     .from(mutationConfig.tableName)
@@ -460,7 +450,7 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
-  const { supabase, errorResponse } = await getAuthorizedSupabaseClient();
+  const { supabase, profileId, errorResponse } = await getAuthorizedSupabaseClient();
   if (errorResponse) {
     return errorResponse;
   }
@@ -501,9 +491,7 @@ export async function PATCH(request) {
     return NextResponse.json({ error: 'At least one field value is required.' }, { status: 400 });
   }
 
-  if (toDisplayText(mutationConfig.modifiedAtColumn)) {
-    values[mutationConfig.modifiedAtColumn] = new Date().toISOString();
-  }
+  values.modified_by_user_id = profileId;
 
   const { data, error } = await supabase
     .from(mutationConfig.tableName)

@@ -22,20 +22,20 @@ async function getAuthorizedSupabaseClient() {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return { supabase: null, user: null, errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    return { supabase: null, profileId: null, errorResponse: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('is_superadmin')
+    .select('id,is_superadmin')
     .eq('id', user.id)
     .maybeSingle();
 
   if (profileError || profile?.is_superadmin !== true) {
-    return { supabase: null, user: null, errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+    return { supabase: null, profileId: null, errorResponse: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 
-  return { supabase, user, errorResponse: null };
+  return { supabase, profileId: profile.id, errorResponse: null };
 }
 
 export async function GET(request) {
@@ -69,7 +69,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { supabase, user, errorResponse } = await getAuthorizedSupabaseClient();
+  const { supabase, profileId, errorResponse } = await getAuthorizedSupabaseClient();
   if (errorResponse) {
     return errorResponse;
   }
@@ -87,14 +87,13 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Image URL is required.' }, { status: 400 });
   }
 
-  const nowIsoString = new Date().toISOString();
   const insertRow = {
     id: crypto.randomUUID(),
-    created_datetime_utc: nowIsoString,
-    modified_datetime_utc: nowIsoString,
     url,
     is_common_use: parseBoolean(payload?.is_common_use),
-    profile_id: user.id,
+    profile_id: profileId,
+    created_by_user_id: profileId,
+    modified_by_user_id: profileId,
     additional_context: toDisplayText(payload?.additional_context),
     is_public: parseBoolean(payload?.is_public),
     image_description: toDisplayText(payload?.image_description),
@@ -116,7 +115,7 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
-  const { supabase, errorResponse } = await getAuthorizedSupabaseClient();
+  const { supabase, profileId, errorResponse } = await getAuthorizedSupabaseClient();
   if (errorResponse) {
     return errorResponse;
   }
@@ -150,7 +149,7 @@ export async function PATCH(request) {
   }
 
   const updateRow = {
-    modified_datetime_utc: new Date().toISOString(),
+    modified_by_user_id: profileId,
   };
 
   if (hasPublicFlag) {
