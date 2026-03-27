@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { createPortal } from 'react-dom';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './AdminDataPanels.module.css';
 
 const DEFAULT_DISPLAY_COUNT = 100;
@@ -13,31 +13,11 @@ const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/we
 const FILE_ACCEPT_VALUE = SUPPORTED_IMAGE_TYPES.join(',');
 const CAPTION_TEXT_KEYS = ['content', 'caption', 'text', 'title', 'generated_caption', 'caption_text'];
 const IMAGE_FORM_DEFAULTS = {
+  imageDescription: '',
+  additionalContext: '',
   isPublic: false,
   isCommonUse: false,
 };
-const USERS_SUB_MODE_OPTIONS = [
-  { id: 'users', label: 'Users' },
-  { id: 'signupDomains', label: 'Signup Domains' },
-  { id: 'whitelistedEmails', label: 'Whitelisted Emails' },
-];
-const CAPTIONS_SUB_MODE_OPTIONS = [
-  { id: 'captions', label: 'Captions' },
-  { id: 'captionRequests', label: 'Captions Requests' },
-  { id: 'captionExamples', label: 'Captions Examples' },
-  { id: 'terms', label: 'Terms' },
-];
-const HUMOR_FLAVORS_SUB_MODE_OPTIONS = [
-  { id: 'humorFlavors', label: 'Humor Flavors' },
-  { id: 'humorFlavorSteps', label: 'Humor Flavor Steps' },
-  { id: 'humorFlavorMix', label: 'Humor Mix' },
-];
-const LLMS_SUB_MODE_OPTIONS = [
-  { id: 'llmModels', label: 'LLM Models' },
-  { id: 'llmProviders', label: 'LLM Providers' },
-  { id: 'llmPromptChains', label: 'LLM Prompt Chains' },
-  { id: 'llmResponses', label: 'LLM Responses' },
-];
 const READ_ONLY_TABLE_CONFIG = {
   captionRequests: {
     title: 'Captions Requests',
@@ -124,6 +104,23 @@ const READ_ONLY_TABLE_CONFIG = {
     ],
   },
 };
+const SINGULAR_TABLE_LABEL_BY_VIEW = {
+  users: 'User',
+  captions: 'Caption',
+  images: 'Image',
+  captionRequests: 'Caption Request',
+  captionExamples: 'Caption Example',
+  terms: 'Term',
+  signupDomains: 'Signup Domain',
+  whitelistedEmails: 'Whitelisted Email',
+  humorFlavors: 'Humor Flavor',
+  humorFlavorSteps: 'Humor Flavor Step',
+  humorFlavorMix: 'Humor Mix',
+  llmModels: 'LLM Model',
+  llmProviders: 'LLM Provider',
+  llmPromptChains: 'LLM Prompt Chain',
+  llmResponses: 'LLM Response',
+};
 const MUTABLE_READ_ONLY_TABLE_CONFIG = {
   humorFlavorMix: {
     canCreate: false,
@@ -200,22 +197,24 @@ function createInitialEditImageFormValues(image = null) {
   };
 }
 
-function asLower(value) {
-  return String(value ?? '').toLowerCase();
-}
-
 function toDisplayText(value) {
   const normalizedValue = String(value ?? '').trim();
   return normalizedValue.length > 0 ? normalizedValue : null;
 }
 
-function autoSizeTextarea(element) {
-  if (!element) {
-    return;
+async function fetchDashboardSearchRows(viewKey, query, fallbackErrorMessage) {
+  const searchParams = new URLSearchParams({ view: viewKey, q: query });
+  const response = await fetch(`/api/admin/dashboard?${searchParams.toString()}`, {
+    method: 'GET',
+    cache: 'no-store',
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(payload?.error ?? fallbackErrorMessage);
   }
 
-  element.style.height = 'auto';
-  element.style.height = `${element.scrollHeight}px`;
+  return Array.isArray(payload?.rows) ? payload.rows : [];
 }
 
 function formatColumnLabel(column) {
@@ -226,18 +225,35 @@ function formatColumnLabel(column) {
     .join(' ');
 }
 
-function formatReadOnlyCellValue(value) {
+function truncateText(value, maxLength = 140) {
+  const normalizedValue = toDisplayText(value);
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (normalizedValue.length <= maxLength) {
+    return normalizedValue;
+  }
+
+  return `${normalizedValue.slice(0, maxLength - 3)}...`;
+}
+
+function formatDetailFieldValue(value) {
   if (value === null || value === undefined) {
     return '—';
   }
 
   if (typeof value === 'object') {
-    const serialized = JSON.stringify(value);
-    if (!serialized) {
+    try {
+      const serialized = JSON.stringify(value, null, 2);
+      if (!serialized) {
+        return '—';
+      }
+
+      return serialized.length > 5000 ? `${serialized.slice(0, 4997)}...` : serialized;
+    } catch {
       return '—';
     }
-
-    return serialized.length > 300 ? `${serialized.slice(0, 297)}...` : serialized;
   }
 
   const textValue = String(value);
@@ -245,11 +261,70 @@ function formatReadOnlyCellValue(value) {
     return '—';
   }
 
-  return textValue.length > 300 ? `${textValue.slice(0, 297)}...` : textValue;
+  return textValue.length > 5000 ? `${textValue.slice(0, 4997)}...` : textValue;
+}
+
+function buildDetailEntries(row, prioritizedKeys = []) {
+  const nextEntries = [];
+  const seenKeys = new Set();
+  const sourceRow = typeof row === 'object' && row !== null ? row : {};
+
+  for (const key of prioritizedKeys) {
+    if (!key || seenKeys.has(key) || !(key in sourceRow)) {
+      continue;
+    }
+
+    seenKeys.add(key);
+    nextEntries.push({
+      key,
+      label: formatColumnLabel(key),
+      value: formatDetailFieldValue(sourceRow[key]),
+    });
+  }
+
+  const remainingKeys = Object.keys(sourceRow)
+    .filter((key) => !seenKeys.has(key))
+    .sort((first, second) => first.localeCompare(second));
+
+  for (const key of remainingKeys) {
+    nextEntries.push({
+      key,
+      label: formatColumnLabel(key),
+      value: formatDetailFieldValue(sourceRow[key]),
+    });
+  }
+
+  return nextEntries;
 }
 
 function toBoolean(value) {
   return value === true || value === 'true' || value === 1 || value === '1';
+}
+
+function singularizeTitle(title) {
+  const normalizedTitle = toDisplayText(title);
+  if (!normalizedTitle) {
+    return 'Row';
+  }
+
+  if (normalizedTitle.endsWith('ies')) {
+    return `${normalizedTitle.slice(0, -3)}y`;
+  }
+
+  if (normalizedTitle.endsWith('s')) {
+    return normalizedTitle.slice(0, -1);
+  }
+
+  return normalizedTitle;
+}
+
+function getSingularTableLabel(viewKey, fallbackTitle = null) {
+  const explicitLabel = SINGULAR_TABLE_LABEL_BY_VIEW[viewKey];
+  if (explicitLabel) {
+    return explicitLabel;
+  }
+
+  return singularizeTitle(fallbackTitle);
 }
 
 function getMutableReadOnlyConfig(viewKey) {
@@ -437,20 +512,6 @@ async function postJson(path, token, body, fallbackErrorMessage) {
   return response.json();
 }
 
-function extractRegisteredImageId(payload) {
-  const directImageId = toDisplayText(payload?.imageId);
-  if (directImageId) {
-    return directImageId;
-  }
-
-  const nestedImageId = toDisplayText(payload?.image?.id);
-  if (nestedImageId) {
-    return nestedImageId;
-  }
-
-  return toDisplayText(payload?.id);
-}
-
 export default function AdminDataPanels({
   users = [],
   captions = [],
@@ -460,10 +521,12 @@ export default function AdminDataPanels({
   onImageUpdated = null,
   onImageDeleted = null,
   panelMode = 'overview',
+  activeUsersSubMode = 'users',
+  activeCaptionsSubMode = 'captions',
+  activeHumorSubMode = 'humorFlavors',
+  activeLlmsSubMode = 'llmModels',
 }) {
   const supabase = useMemo(() => createClient(), []);
-  const imageDescriptionTextareaRef = useRef(null);
-  const additionalContextTextareaRef = useRef(null);
   const [userSearchInput, setUserSearchInput] = useState('');
   const [captionSearchInput, setCaptionSearchInput] = useState('');
   const [imageSearchInput, setImageSearchInput] = useState('');
@@ -471,6 +534,15 @@ export default function AdminDataPanels({
   const [appliedUserSearch, setAppliedUserSearch] = useState('');
   const [appliedCaptionSearch, setAppliedCaptionSearch] = useState('');
   const [appliedImageSearch, setAppliedImageSearch] = useState('');
+  const [searchedUsers, setSearchedUsers] = useState([]);
+  const [searchedCaptions, setSearchedCaptions] = useState([]);
+  const [searchedImages, setSearchedImages] = useState([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [isSearchingCaptions, setIsSearchingCaptions] = useState(false);
+  const [isSearchingImages, setIsSearchingImages] = useState(false);
+  const [userSearchError, setUserSearchError] = useState('');
+  const [captionSearchError, setCaptionSearchError] = useState('');
+  const [imageSearchError, setImageSearchError] = useState('');
 
   const [defaultUsers, setDefaultUsers] = useState([]);
   const [defaultCaptions, setDefaultCaptions] = useState([]);
@@ -485,12 +557,10 @@ export default function AdminDataPanels({
   const [isEditImageModalOpen, setIsEditImageModalOpen] = useState(false);
   const [isSavingImageEdit, setIsSavingImageEdit] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
+  const [isLoadingEditImageDetails, setIsLoadingEditImageDetails] = useState(false);
   const [editImageError, setEditImageError] = useState('');
   const [editImageFormValues, setEditImageFormValues] = useState(createInitialEditImageFormValues);
-  const [activeUsersSubMode, setActiveUsersSubMode] = useState('users');
-  const [activeCaptionsSubMode, setActiveCaptionsSubMode] = useState('captions');
-  const [activeHumorSubMode, setActiveHumorSubMode] = useState('humorFlavors');
-  const [activeLlmsSubMode, setActiveLlmsSubMode] = useState('llmModels');
+  const [activeEditImageRow, setActiveEditImageRow] = useState(null);
   const [readOnlyRowsByView, setReadOnlyRowsByView] = useState({});
   const [isReadOnlyLoadingByView, setIsReadOnlyLoadingByView] = useState({});
   const [readOnlyErrorsByView, setReadOnlyErrorsByView] = useState({});
@@ -501,72 +571,18 @@ export default function AdminDataPanels({
   const [crudModalMode, setCrudModalMode] = useState('edit');
   const [crudModalViewKey, setCrudModalViewKey] = useState('');
   const [crudModalRowId, setCrudModalRowId] = useState('');
+  const [crudModalRowData, setCrudModalRowData] = useState(null);
   const [crudFormValues, setCrudFormValues] = useState({});
   const [crudFormError, setCrudFormError] = useState('');
   const [isSubmittingCrudForm, setIsSubmittingCrudForm] = useState(false);
   const [isDeletingCrudRow, setIsDeletingCrudRow] = useState(false);
+  const [detailModalState, setDetailModalState] = useState(null);
   const isEditActionInProgress = isSavingImageEdit || isDeletingImage;
   const isCrudActionInProgress = isSubmittingCrudForm || isDeletingCrudRow;
 
   const hasUserSearch = appliedUserSearch.trim().length >= MIN_SEARCH_LENGTH;
   const hasCaptionSearch = appliedCaptionSearch.trim().length >= MIN_SEARCH_LENGTH;
   const hasImageSearch = appliedImageSearch.trim().length >= MIN_SEARCH_LENGTH;
-
-  const filteredUsers = useMemo(() => {
-    const query = asLower(appliedUserSearch).trim();
-
-    if (query.length < MIN_SEARCH_LENGTH) {
-      return users;
-    }
-
-    return users.filter((user) => {
-      const haystack = [
-        user.id,
-        user.first_name,
-        user.last_name,
-        user.email,
-        user.is_superadmin ? 'superadmin' : 'user',
-      ]
-        .map(asLower)
-        .join(' ');
-
-      return haystack.includes(query);
-    });
-  }, [appliedUserSearch, users]);
-
-  const filteredCaptions = useMemo(() => {
-    const query = asLower(appliedCaptionSearch).trim();
-
-    if (query.length < MIN_SEARCH_LENGTH) {
-      return captions;
-    }
-
-    return captions.filter((caption) => {
-      const captionText = resolveCaptionText(caption);
-      const visibility = isPublicCaption(caption) ? 'public is_public' : 'private';
-      const haystack = [caption.id, caption.profile_id, captionText, visibility]
-        .map(asLower)
-        .join(' ');
-      return haystack.includes(query);
-    });
-  }, [appliedCaptionSearch, captions]);
-
-  const filteredImages = useMemo(() => {
-    const query = asLower(appliedImageSearch).trim();
-
-    if (query.length < MIN_SEARCH_LENGTH) {
-      return images;
-    }
-
-    return images.filter((image) => {
-      const imageDescription = getImageDescription(image);
-      const haystack = [image.id, image.url, imageDescription, image.additional_context]
-        .map(asLower)
-        .join(' ');
-
-      return haystack.includes(query);
-    });
-  }, [appliedImageSearch, images]);
 
   const imageUrlById = useMemo(() => {
     const map = new Map();
@@ -584,6 +600,21 @@ export default function AdminDataPanels({
 
     return map;
   }, [images]);
+
+  const userById = useMemo(() => {
+    const map = new Map();
+
+    for (const user of users) {
+      const userId = toDisplayText(user?.id);
+      if (!userId) {
+        continue;
+      }
+
+      map.set(userId, user);
+    }
+
+    return map;
+  }, [users]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -604,9 +635,9 @@ export default function AdminDataPanels({
     };
   }, [users, captions, images]);
 
-  const visibleUsers = hasUserSearch ? filteredUsers : defaultUsers;
-  const visibleCaptions = hasCaptionSearch ? filteredCaptions : defaultCaptions;
-  const visibleImages = hasImageSearch ? filteredImages : defaultImages;
+  const visibleUsers = hasUserSearch ? searchedUsers : defaultUsers;
+  const visibleCaptions = hasCaptionSearch ? searchedCaptions : defaultCaptions;
+  const visibleImages = hasImageSearch ? searchedImages : defaultImages;
 
   const showUsersIndexing = !hasUserSearch && (isDataLoading || (users.length > 0 && defaultUsers.length === 0));
   const showCaptionsIndexing =
@@ -782,6 +813,61 @@ export default function AdminDataPanels({
   }, [isEditActionInProgress, isEditImageModalOpen]);
 
   useEffect(() => {
+    if (!isEditImageModalOpen) {
+      return undefined;
+    }
+
+    const imageId = toDisplayText(editImageFormValues.id);
+    if (!imageId) {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function fetchFullImageRow() {
+      setIsLoadingEditImageDetails(true);
+
+      try {
+        const response = await fetch(`/api/admin/images?id=${encodeURIComponent(imageId)}`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? 'Could not load full image details.');
+        }
+
+        if (isCancelled) {
+          return;
+        }
+
+        const fullImageRow = payload?.image;
+        if (fullImageRow) {
+          setActiveEditImageRow(fullImageRow);
+          setEditImageFormValues(createInitialEditImageFormValues(fullImageRow));
+        }
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+
+        setEditImageError((currentError) => currentError || error?.message || 'Could not load full image details.');
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingEditImageDetails(false);
+        }
+      }
+    }
+
+    void fetchFullImageRow();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [editImageFormValues.id, isEditImageModalOpen]);
+
+  useEffect(() => {
     if (!isCrudModalOpen) {
       return undefined;
     }
@@ -801,30 +887,103 @@ export default function AdminDataPanels({
   }, [isCrudActionInProgress, isCrudModalOpen]);
 
   useEffect(() => {
-    if (!isEditImageModalOpen) {
+    if (!detailModalState) {
+      return undefined;
+    }
+
+    function handleEscape(event) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      setDetailModalState(null);
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [detailModalState]);
+
+  async function submitUserSearch(event) {
+    event.preventDefault();
+    const query = userSearchInput.trim();
+
+    if (query.length < MIN_SEARCH_LENGTH) {
+      setAppliedUserSearch('');
+      setSearchedUsers([]);
+      setUserSearchError('');
+      setIsSearchingUsers(false);
       return;
     }
 
-    autoSizeTextarea(imageDescriptionTextareaRef.current);
-    autoSizeTextarea(additionalContextTextareaRef.current);
-  }, [editImageFormValues.additionalContext, editImageFormValues.imageDescription, isEditImageModalOpen]);
+    setAppliedUserSearch(query);
+    setIsSearchingUsers(true);
+    setUserSearchError('');
 
-  function submitUserSearch(event) {
-    event.preventDefault();
-    const query = userSearchInput.trim();
-    setAppliedUserSearch(query.length >= MIN_SEARCH_LENGTH ? query : '');
+    try {
+      const rows = await fetchDashboardSearchRows('users', query, 'Could not search users.');
+      setSearchedUsers(rows);
+    } catch (error) {
+      setSearchedUsers([]);
+      setUserSearchError(error?.message ?? 'Could not search users.');
+    } finally {
+      setIsSearchingUsers(false);
+    }
   }
 
-  function submitCaptionSearch(event) {
+  async function submitCaptionSearch(event) {
     event.preventDefault();
     const query = captionSearchInput.trim();
-    setAppliedCaptionSearch(query.length >= MIN_SEARCH_LENGTH ? query : '');
+
+    if (query.length < MIN_SEARCH_LENGTH) {
+      setAppliedCaptionSearch('');
+      setSearchedCaptions([]);
+      setCaptionSearchError('');
+      setIsSearchingCaptions(false);
+      return;
+    }
+
+    setAppliedCaptionSearch(query);
+    setIsSearchingCaptions(true);
+    setCaptionSearchError('');
+
+    try {
+      const rows = await fetchDashboardSearchRows('captions', query, 'Could not search captions.');
+      setSearchedCaptions(rows);
+    } catch (error) {
+      setSearchedCaptions([]);
+      setCaptionSearchError(error?.message ?? 'Could not search captions.');
+    } finally {
+      setIsSearchingCaptions(false);
+    }
   }
 
-  function submitImageSearch(event) {
+  async function submitImageSearch(event) {
     event.preventDefault();
     const query = imageSearchInput.trim();
-    setAppliedImageSearch(query.length >= MIN_SEARCH_LENGTH ? query : '');
+
+    if (query.length < MIN_SEARCH_LENGTH) {
+      setAppliedImageSearch('');
+      setSearchedImages([]);
+      setImageSearchError('');
+      setIsSearchingImages(false);
+      return;
+    }
+
+    setAppliedImageSearch(query);
+    setIsSearchingImages(true);
+    setImageSearchError('');
+
+    try {
+      const rows = await fetchDashboardSearchRows('images', query, 'Could not search images.');
+      setSearchedImages(rows);
+    } catch (error) {
+      setSearchedImages([]);
+      setImageSearchError(error?.message ?? 'Could not search images.');
+    } finally {
+      setIsSearchingImages(false);
+    }
   }
 
   function handleReadOnlySearchInputChange(viewKey, nextValue) {
@@ -844,6 +1003,41 @@ export default function AdminDataPanels({
     }));
   }
 
+  function clearReadOnlySearch(viewKey) {
+    setReadOnlySearchInputByView((currentSearchInputs) => ({
+      ...currentSearchInputs,
+      [viewKey]: '',
+    }));
+    setAppliedReadOnlySearchByView((currentAppliedSearch) => ({
+      ...currentAppliedSearch,
+      [viewKey]: '',
+    }));
+  }
+
+  function clearUserSearch() {
+    setUserSearchInput('');
+    setAppliedUserSearch('');
+    setSearchedUsers([]);
+    setUserSearchError('');
+    setIsSearchingUsers(false);
+  }
+
+  function clearCaptionSearch() {
+    setCaptionSearchInput('');
+    setAppliedCaptionSearch('');
+    setSearchedCaptions([]);
+    setCaptionSearchError('');
+    setIsSearchingCaptions(false);
+  }
+
+  function clearImageSearch() {
+    setImageSearchInput('');
+    setAppliedImageSearch('');
+    setSearchedImages([]);
+    setImageSearchError('');
+    setIsSearchingImages(false);
+  }
+
   function refreshReadOnlyView(viewKey) {
     if (!viewKey) {
       return;
@@ -855,6 +1049,213 @@ export default function AdminDataPanels({
     }));
   }
 
+  function getProfileLabel(profileId, row = null) {
+    const rowFirstName = toDisplayText(row?.profile_first_name) ?? '';
+    const rowLastName = toDisplayText(row?.profile_last_name) ?? '';
+    const rowFullName = `${rowFirstName} ${rowLastName}`.trim();
+    if (rowFullName) {
+      return rowFullName;
+    }
+
+    const rowEmail = toDisplayText(row?.profile_email);
+    if (rowEmail) {
+      return rowEmail;
+    }
+
+    const normalizedProfileId = toDisplayText(profileId);
+    if (!normalizedProfileId) {
+      return '[unknown profile]';
+    }
+
+    const mappedProfile = userById.get(normalizedProfileId);
+    if (mappedProfile) {
+      const mappedFullName = formatUserFullName(mappedProfile);
+      if (mappedFullName) {
+        return mappedFullName;
+      }
+
+      const mappedEmail = toDisplayText(mappedProfile?.email);
+      if (mappedEmail) {
+        return mappedEmail;
+      }
+    }
+
+    return normalizedProfileId;
+  }
+
+  function getRowImageUrl(viewKey, row) {
+    if (!row || typeof row !== 'object') {
+      return null;
+    }
+
+    if (viewKey === 'images') {
+      return toDisplayText(row?.url);
+    }
+
+    if (viewKey === 'captions') {
+      return getCaptionThumbnailUrl(row, imageUrlById);
+    }
+
+    const explicitImageUrl = toDisplayText(row?.image_url);
+    if (explicitImageUrl) {
+      return explicitImageUrl;
+    }
+
+    const imageId = toDisplayText(row?.image_id);
+    if (!imageId) {
+      return null;
+    }
+
+    return imageUrlById.get(imageId) ?? null;
+  }
+
+  function getReadOnlyCardModel(viewKey, row) {
+    const rowId = toDisplayText(row?.id) ?? '[unknown id]';
+    const imageUrl = getRowImageUrl(viewKey, row);
+
+    if (viewKey === 'signupDomains') {
+      return {
+        primaryText: toDisplayText(row?.apex_domain) ?? '[no apex domain]',
+        secondaryLines: [`id: ${rowId}`],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'whitelistedEmails') {
+      return {
+        primaryText: toDisplayText(row?.email_address) ?? '[no email address]',
+        secondaryLines: [`id: ${rowId}`],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'captionRequests') {
+      const profileId = toDisplayText(row?.profile_id) ?? '—';
+
+      return {
+        primaryText: getProfileLabel(profileId, row),
+        secondaryLines: [`profile id: ${profileId}`],
+        imageUrl,
+      };
+    }
+
+    if (viewKey === 'captionExamples') {
+      return {
+        primaryText: truncateText(row?.caption, 180) ?? '[no caption]',
+        secondaryLines: [`id: ${rowId}`, `image id: ${toDisplayText(row?.image_id) ?? '—'}`],
+        imageUrl,
+      };
+    }
+
+    if (viewKey === 'terms') {
+      return {
+        primaryText: toDisplayText(row?.term) ?? '[no term]',
+        secondaryLines: [truncateText(row?.definition, 180) ?? 'No definition', `id: ${rowId}`],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'humorFlavors') {
+      return {
+        primaryText: toDisplayText(row?.description) ?? '[no description]',
+        secondaryLines: [`slug: ${toDisplayText(row?.slug) ?? '—'}`, `id: ${rowId}`],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'humorFlavorSteps') {
+      return {
+        primaryText: truncateText(row?.description, 180) ?? `Step ${rowId}`,
+        secondaryLines: [
+          `flavor id: ${toDisplayText(row?.humor_flavor_id) ?? '—'}`,
+          `order: ${toDisplayText(row?.order_by) ?? '—'}`,
+        ],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'humorFlavorMix') {
+      return {
+        primaryText: `Humor flavor ${toDisplayText(row?.humor_flavor_id) ?? '—'}`,
+        secondaryLines: [`caption count: ${toDisplayText(row?.caption_count) ?? '0'}`, `id: ${rowId}`],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'llmModels') {
+      return {
+        primaryText: toDisplayText(row?.name) ?? '[unnamed model]',
+        secondaryLines: [
+          `provider model id: ${toDisplayText(row?.provider_model_id) ?? '—'}`,
+          `id: ${rowId}`,
+        ],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'llmProviders') {
+      return {
+        primaryText: toDisplayText(row?.name) ?? '[unnamed provider]',
+        secondaryLines: [`id: ${rowId}`],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'llmPromptChains') {
+      return {
+        primaryText: `Caption request ${toDisplayText(row?.caption_request_id) ?? '—'}`,
+        secondaryLines: [`id: ${rowId}`],
+        imageUrl: null,
+      };
+    }
+
+    if (viewKey === 'llmResponses') {
+      return {
+        primaryText: truncateText(row?.llm_model_response, 180) ?? '[no response]',
+        secondaryLines: [
+          `model id: ${toDisplayText(row?.llm_model_id) ?? '—'}`,
+          `profile id: ${toDisplayText(row?.profile_id) ?? '—'}`,
+        ],
+        imageUrl: null,
+      };
+    }
+
+    const primaryFromColumns =
+      toDisplayText(row?.name) ??
+      toDisplayText(row?.description) ??
+      toDisplayText(row?.term) ??
+      toDisplayText(row?.id) ??
+      '[row]';
+
+    return {
+      primaryText: truncateText(primaryFromColumns, 180) ?? '[row]',
+      secondaryLines: [`id: ${rowId}`],
+      imageUrl,
+    };
+  }
+
+  function openDetailModal({ title, row, prioritizedKeys = [], imageUrl = null, imageAlt = 'Row image', isWide = true }) {
+    setDetailModalState({
+      title,
+      entries: buildDetailEntries(row, prioritizedKeys),
+      imageUrl,
+      imageAlt,
+      isWide,
+    });
+  }
+
+  function closeDetailModal() {
+    setDetailModalState(null);
+  }
+
+  function handleDetailModalBackdropClick(event) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    closeDetailModal();
+  }
+
   function openCreateCrudModal(viewKey) {
     const mutableConfig = getMutableReadOnlyConfig(viewKey);
     if (!mutableConfig?.canCreate) {
@@ -864,6 +1265,7 @@ export default function AdminDataPanels({
     setCrudModalMode('create');
     setCrudModalViewKey(viewKey);
     setCrudModalRowId('');
+    setCrudModalRowData(null);
     setCrudFormValues(createReadOnlyCrudFormValues(viewKey));
     setCrudFormError('');
     setIsCrudModalOpen(true);
@@ -883,6 +1285,7 @@ export default function AdminDataPanels({
     setCrudModalMode('edit');
     setCrudModalViewKey(viewKey);
     setCrudModalRowId(rowId);
+    setCrudModalRowData(row);
     setCrudFormValues(createReadOnlyCrudFormValues(viewKey, row));
     setCrudFormError('');
     setIsCrudModalOpen(true);
@@ -897,6 +1300,7 @@ export default function AdminDataPanels({
     setCrudModalMode('edit');
     setCrudModalViewKey('');
     setCrudModalRowId('');
+    setCrudModalRowData(null);
     setCrudFormValues({});
     setCrudFormError('');
   }
@@ -1063,6 +1467,8 @@ export default function AdminDataPanels({
   }
 
   function handleOpenEditImageModal(image) {
+    setActiveEditImageRow(image);
+    setIsLoadingEditImageDetails(false);
     setEditImageFormValues(createInitialEditImageFormValues(image));
     setEditImageError('');
     setIsEditImageModalOpen(true);
@@ -1074,6 +1480,8 @@ export default function AdminDataPanels({
     }
 
     setIsEditImageModalOpen(false);
+    setActiveEditImageRow(null);
+    setIsLoadingEditImageDetails(false);
     setEditImageError('');
   }
 
@@ -1087,10 +1495,6 @@ export default function AdminDataPanels({
 
   function handleEditImageInputChange(event) {
     const { name, value, type, checked } = event.target;
-    if (event.target?.tagName === 'TEXTAREA') {
-      autoSizeTextarea(event.target);
-    }
-
     setEditImageFormValues((currentValues) => ({
       ...currentValues,
       [name]: type === 'checkbox' ? checked : value,
@@ -1147,44 +1551,31 @@ export default function AdminDataPanels({
         throw new Error(await getResponseErrorMessage(uploadResponse, 'Could not upload the image bytes.'));
       }
 
-      const registrationData = await postJson(
-        '/pipeline/upload-image-from-url',
-        token,
-        {
-          imageUrl: presignedData.cdnUrl,
-          isCommonUse: addImageFormValues.isCommonUse,
-        },
-        'Could not register uploaded image URL.'
-      );
-
-      const imageId = extractRegisteredImageId(registrationData);
-      if (!imageId) {
-        throw new Error('Image upload succeeded, but no image id was returned.');
-      }
-
-      const finalizeResponse = await fetch('/api/admin/images', {
-        method: 'PATCH',
+      const createResponse = await fetch('/api/admin/images', {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          id: imageId,
+          url: presignedData.cdnUrl,
           is_public: addImageFormValues.isPublic,
           is_common_use: addImageFormValues.isCommonUse,
+          image_description: addImageFormValues.imageDescription,
+          additional_context: addImageFormValues.additionalContext,
         }),
       });
 
-      const finalizePayload = await finalizeResponse.json().catch(() => null);
-      if (!finalizeResponse.ok) {
-        throw new Error(finalizePayload?.error ?? 'Could not finalize image settings.');
+      const createPayload = await createResponse.json().catch(() => null);
+      if (!createResponse.ok) {
+        throw new Error(createPayload?.error ?? 'Could not create image row.');
       }
 
       const nextImage =
-        finalizePayload?.image ?? {
-          id: imageId,
+        createPayload?.image ?? {
+          id: crypto.randomUUID(),
           url: presignedData.cdnUrl,
-          image_description: null,
-          additional_context: null,
+          image_description: toDisplayText(addImageFormValues.imageDescription),
+          additional_context: toDisplayText(addImageFormValues.additionalContext),
           celebrity_recognition: null,
           created_datetime_utc: new Date().toISOString(),
         };
@@ -1241,6 +1632,7 @@ export default function AdminDataPanels({
 
       const updatedImage = payload?.image;
       if (updatedImage) {
+        setActiveEditImageRow(updatedImage);
         setEditImageFormValues(createInitialEditImageFormValues(updatedImage));
       }
 
@@ -1288,12 +1680,48 @@ export default function AdminDataPanels({
       }
 
       setIsEditImageModalOpen(false);
+      setActiveEditImageRow(null);
+      setIsLoadingEditImageDetails(false);
     } catch (error) {
       setEditImageError(error?.message ?? 'Unable to delete image.');
     } finally {
       setIsDeletingImage(false);
     }
   }
+
+  const activeCrudModalConfig = getMutableReadOnlyConfig(crudModalViewKey);
+  const crudPreviewImageUrl =
+    crudModalMode === 'edit' && crudModalRowData ? getRowImageUrl(crudModalViewKey, crudModalRowData) : null;
+  const imageReadOnlyEntries =
+    activeEditImageRow === null
+      ? []
+      : buildDetailEntries(activeEditImageRow, [
+          'id',
+          'created_datetime_utc',
+          'modified_datetime_utc',
+          'created_by_user_id',
+          'modified_by_user_id',
+          'profile_id',
+          'url',
+          'celebrity_recognition',
+          'embedding',
+        ]).filter(
+          (entry) =>
+            ![
+              'image_description',
+              'additional_context',
+              'is_public',
+              'is_common_use',
+            ].includes(entry.key)
+        );
+  const crudEditableFieldKeys = new Set((activeCrudModalConfig?.fields ?? []).map((field) => field.key));
+  const activeCrudColumns = READ_ONLY_TABLE_CONFIG[crudModalViewKey]?.columns ?? [];
+  const crudReadOnlyEntries =
+    crudModalMode === 'edit' && crudModalRowData
+      ? buildDetailEntries(crudModalRowData, activeCrudColumns).filter(
+          (entry) => !crudEditableFieldKeys.has(entry.key)
+        )
+      : [];
 
   const addImageModal = isAddImageModalOpen ? (
     <div className={styles.modalBackdrop} onClick={handleAddImageModalBackdropClick}>
@@ -1327,6 +1755,29 @@ export default function AdminDataPanels({
               </p>
             )}
           </div>
+
+          <label className={styles.formField}>
+            <span className={styles.fieldLabel}>Image caption</span>
+            <textarea
+              name="imageDescription"
+              value={addImageFormValues.imageDescription}
+              onChange={handleAddImageInputChange}
+              rows={4}
+              required
+              className={styles.formTextarea}
+            />
+          </label>
+
+          <label className={styles.formField}>
+            <span className={styles.fieldLabel}>Additional context (optional)</span>
+            <textarea
+              name="additionalContext"
+              value={addImageFormValues.additionalContext}
+              onChange={handleAddImageInputChange}
+              rows={4}
+              className={styles.formTextarea}
+            />
+          </label>
 
           <div className={styles.checkboxRow}>
             <label className={styles.checkboxLabel}>
@@ -1376,73 +1827,89 @@ export default function AdminDataPanels({
       <div className={`${styles.modalCard} ${styles.editModalCard}`} role="dialog" aria-modal="true" aria-labelledby="edit-image-title">
         <div className={styles.modalHeader}>
           <h3 id="edit-image-title" className={styles.modalTitle}>
-            Edit Image
+            Read/Modify Image
           </h3>
         </div>
 
         <form className={styles.modalForm} onSubmit={submitEditImage}>
-          <div className={styles.editPreviewFrame}>
-            {editImageFormValues.url ? (
-              <img src={editImageFormValues.url} alt="Image preview" className={styles.editPreviewImage} />
-            ) : (
-              <p className={styles.editPreviewEmpty}>No image URL available.</p>
-            )}
+          <div
+            className={`${styles.modalInlineLayout} ${
+              editImageFormValues.url ? styles.modalInlineLayoutWithImage : ''
+            }`}
+          >
+            <div className={styles.editPreviewFrame}>
+              {editImageFormValues.url ? (
+                <img src={editImageFormValues.url} alt="Image preview" className={styles.editPreviewImage} />
+              ) : (
+                <p className={styles.editPreviewEmpty}>No image URL available.</p>
+              )}
+            </div>
+
+            <div className={styles.modalInlineFields}>
+              <label className={styles.formField}>
+                <span className={styles.fieldLabel}>Image description</span>
+                <textarea
+                  name="imageDescription"
+                  value={editImageFormValues.imageDescription}
+                  onChange={handleEditImageInputChange}
+                  rows={4}
+                  className={styles.formTextarea}
+                  placeholder="Enter image description"
+                />
+              </label>
+
+              <label className={styles.formField}>
+                <span className={styles.fieldLabel}>Additional context</span>
+                <textarea
+                  name="additionalContext"
+                  value={editImageFormValues.additionalContext}
+                  onChange={handleEditImageInputChange}
+                  rows={4}
+                  className={styles.formTextarea}
+                  placeholder="Optional additional context"
+                />
+              </label>
+
+              <div className={styles.checkboxRow}>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name="isPublic"
+                    checked={editImageFormValues.isPublic}
+                    onChange={handleEditImageInputChange}
+                    className={styles.checkboxInput}
+                  />
+                  <span>Public</span>
+                </label>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    name="isCommonUse"
+                    checked={editImageFormValues.isCommonUse}
+                    onChange={handleEditImageInputChange}
+                    className={styles.checkboxInput}
+                  />
+                  <span>Common use</span>
+                </label>
+              </div>
+            </div>
           </div>
 
-          <div className={styles.editMetaGrid}>
-            <p className={`${styles.editMetaText} ${styles.editMetaTextCentered}`}>
-              id: {editImageFormValues.id || '[unknown id]'}
-            </p>
-          </div>
+          {isLoadingEditImageDetails ? <p className={styles.emptyText}>Loading full row...</p> : null}
 
-          <label className={styles.formField}>
-            <span className={styles.fieldLabel}>Image description</span>
-            <textarea
-              ref={imageDescriptionTextareaRef}
-              name="imageDescription"
-              value={editImageFormValues.imageDescription}
-              onChange={handleEditImageInputChange}
-              rows={1}
-              className={`${styles.formTextarea} ${styles.autoExpandTextarea}`}
-              placeholder="Enter image description"
-            />
-          </label>
-
-          <label className={styles.formField}>
-            <span className={styles.fieldLabel}>Additional context</span>
-            <textarea
-              ref={additionalContextTextareaRef}
-              name="additionalContext"
-              value={editImageFormValues.additionalContext}
-              onChange={handleEditImageInputChange}
-              rows={1}
-              className={`${styles.formTextarea} ${styles.autoExpandTextarea}`}
-              placeholder="Optional additional context"
-            />
-          </label>
-
-          <div className={styles.checkboxRow}>
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                name="isPublic"
-                checked={editImageFormValues.isPublic}
-                onChange={handleEditImageInputChange}
-                className={styles.checkboxInput}
-              />
-              <span>Public</span>
-            </label>
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                name="isCommonUse"
-                checked={editImageFormValues.isCommonUse}
-                onChange={handleEditImageInputChange}
-                className={styles.checkboxInput}
-              />
-              <span>Common use</span>
-            </label>
-          </div>
+          {imageReadOnlyEntries.length > 0 ? (
+            <div className={styles.formField}>
+              <span className={styles.fieldLabel}>Generated Fields</span>
+              <div className={styles.detailList}>
+                {imageReadOnlyEntries.map((entry) => (
+                  <div key={`image-readonly-${entry.key}`} className={styles.detailListItem}>
+                    <p className={styles.detailLabel}>{entry.label}</p>
+                    <p className={styles.detailValue}>{entry.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {editImageError ? <p className={styles.formError}>{editImageError}</p> : null}
 
@@ -1471,67 +1938,121 @@ export default function AdminDataPanels({
       </div>
     </div>
   ) : null;
-  const activeCrudModalConfig = getMutableReadOnlyConfig(crudModalViewKey);
+  const crudModalEntityLabel = getSingularTableLabel(
+    crudModalViewKey,
+    READ_ONLY_TABLE_CONFIG[crudModalViewKey]?.title
+  );
+  const isCaptionExampleModal = crudModalViewKey === 'captionExamples';
+  const isCrudModalWide = ['captionExamples', 'humorFlavorMix'].includes(crudModalViewKey);
   const crudModal = isCrudModalOpen && activeCrudModalConfig ? (
     <div className={styles.modalBackdrop} onClick={handleCrudModalBackdropClick}>
-      <div className={styles.modalCard} role="dialog" aria-modal="true" aria-labelledby="crud-modal-title">
+      <div
+        className={`${styles.modalCard} ${isCrudModalWide ? styles.editModalCard : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="crud-modal-title"
+      >
         <div className={styles.modalHeader}>
           <h3 id="crud-modal-title" className={styles.modalTitle}>
-            {crudModalMode === 'create' ? `Create ${READ_ONLY_TABLE_CONFIG[crudModalViewKey]?.title ?? 'Row'}` : `Edit ${READ_ONLY_TABLE_CONFIG[crudModalViewKey]?.title ?? 'Row'}`}
+            {crudModalMode === 'create'
+              ? `Create ${crudModalEntityLabel}`
+              : `Read/Modify ${crudModalEntityLabel}`}
           </h3>
         </div>
 
         <form className={styles.modalForm} onSubmit={submitCrudForm}>
-          {crudModalMode === 'edit' ? (
-            <p className={`${styles.editMetaText} ${styles.editMetaTextCentered}`}>id: {crudModalRowId}</p>
+          <div
+            className={`${styles.modalInlineLayout} ${
+              crudPreviewImageUrl || isCaptionExampleModal ? styles.modalInlineLayoutWithImage : ''
+            }`}
+          >
+            {crudPreviewImageUrl || isCaptionExampleModal ? (
+              <div className={styles.editPreviewFrame}>
+                {crudPreviewImageUrl ? (
+                  <img src={crudPreviewImageUrl} alt="Row image preview" className={styles.editPreviewImage} />
+                ) : (
+                  <p className={styles.editPreviewEmpty}>No image available.</p>
+                )}
+              </div>
+            ) : null}
+
+            <div className={styles.modalInlineFields}>
+              {activeCrudModalConfig.fields.map((field) => {
+                const fieldValue = crudFormValues[field.key];
+
+                if (field.type === 'boolean') {
+                  return (
+                    <label key={field.key} className={styles.checkboxLabel}>
+                      <input
+                        type="checkbox"
+                        name={field.key}
+                        checked={fieldValue === true}
+                        onChange={handleCrudInputChange}
+                        className={styles.checkboxInput}
+                      />
+                      <span>{field.label}</span>
+                    </label>
+                  );
+                }
+
+                if (field.type === 'textarea') {
+                  return (
+                    <label key={field.key} className={styles.formField}>
+                      <span className={styles.fieldLabel}>{field.label}</span>
+                      <textarea
+                        name={field.key}
+                        value={fieldValue ?? ''}
+                        onChange={handleCrudInputChange}
+                        rows={3}
+                        className={styles.formTextarea}
+                      />
+                    </label>
+                  );
+                }
+
+                return (
+                  <label key={field.key} className={styles.formField}>
+                    <span className={styles.fieldLabel}>{field.label}</span>
+                    <input
+                      type={field.type === 'number' ? 'number' : 'text'}
+                      name={field.key}
+                      value={fieldValue ?? ''}
+                      onChange={handleCrudInputChange}
+                      className={styles.formInput}
+                    />
+                  </label>
+                );
+              })}
+
+              {!isCaptionExampleModal && crudReadOnlyEntries.length > 0 ? (
+                <div className={styles.formField}>
+                  <span className={styles.fieldLabel}>Generated Fields</span>
+                  <div className={styles.detailList}>
+                    {crudReadOnlyEntries.map((entry) => (
+                      <div key={`crud-readonly-${entry.key}`} className={styles.detailListItem}>
+                        <p className={styles.detailLabel}>{entry.label}</p>
+                        <p className={styles.detailValue}>{entry.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {isCaptionExampleModal && crudReadOnlyEntries.length > 0 ? (
+            <div className={styles.formField}>
+              <span className={styles.fieldLabel}>Generated Fields</span>
+              <div className={styles.detailList}>
+                {crudReadOnlyEntries.map((entry) => (
+                  <div key={`crud-readonly-${entry.key}`} className={styles.detailListItem}>
+                    <p className={styles.detailLabel}>{entry.label}</p>
+                    <p className={styles.detailValue}>{entry.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           ) : null}
-
-          {activeCrudModalConfig.fields.map((field) => {
-            const fieldValue = crudFormValues[field.key];
-
-            if (field.type === 'boolean') {
-              return (
-                <label key={field.key} className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    name={field.key}
-                    checked={fieldValue === true}
-                    onChange={handleCrudInputChange}
-                    className={styles.checkboxInput}
-                  />
-                  <span>{field.label}</span>
-                </label>
-              );
-            }
-
-            if (field.type === 'textarea') {
-              return (
-                <label key={field.key} className={styles.formField}>
-                  <span className={styles.fieldLabel}>{field.label}</span>
-                  <textarea
-                    name={field.key}
-                    value={fieldValue ?? ''}
-                    onChange={handleCrudInputChange}
-                    rows={3}
-                    className={styles.formTextarea}
-                  />
-                </label>
-              );
-            }
-
-            return (
-              <label key={field.key} className={styles.formField}>
-                <span className={styles.fieldLabel}>{field.label}</span>
-                <input
-                  type={field.type === 'number' ? 'number' : 'text'}
-                  name={field.key}
-                  value={fieldValue ?? ''}
-                  onChange={handleCrudInputChange}
-                  className={styles.formInput}
-                />
-              </label>
-            );
-          })}
 
           {crudFormError ? <p className={styles.formError}>{crudFormError}</p> : null}
 
@@ -1568,45 +2089,53 @@ export default function AdminDataPanels({
       </div>
     </div>
   ) : null;
+  const detailModal = detailModalState ? (
+    <div className={styles.modalBackdrop} onClick={handleDetailModalBackdropClick}>
+      <div
+        className={`${styles.modalCard} ${detailModalState.isWide ? styles.editModalCard : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-modal-title"
+      >
+        <div className={styles.modalHeader}>
+          <h3 id="detail-modal-title" className={styles.modalTitle}>
+            {detailModalState.title}
+          </h3>
+        </div>
 
-  function renderSubModeSwitcher(options, activeMode, setActiveMode, ariaLabel) {
-    const activeIndex = options.findIndex((option) => option.id === activeMode);
+        <div className={styles.modalForm}>
+          <div
+            className={`${styles.modalInlineLayout} ${
+              detailModalState.imageUrl ? styles.modalInlineLayoutWithImage : ''
+            }`}
+          >
+            {detailModalState.imageUrl ? (
+              <div className={styles.editPreviewFrame}>
+                <img src={detailModalState.imageUrl} alt={detailModalState.imageAlt} className={styles.editPreviewImage} />
+              </div>
+            ) : null}
 
-    return (
-      <div className={styles.subModeRoot}>
-        <div
-          className={styles.subModeTrack}
-          role="tablist"
-          aria-label={ariaLabel}
-          style={{ '--sub-mode-option-count': options.length }}
-        >
-          <div className={styles.subModeGrid}>
-            <span
-              aria-hidden
-              className={styles.subModeThumb}
-              style={{ transform: `translateX(${Math.max(activeIndex, 0) * 100}%)` }}
-            />
-            {options.map((option) => {
-              const isActive = option.id === activeMode;
+            <div className={styles.modalInlineFields}>
+              <div className={styles.detailList}>
+                {detailModalState.entries.map((entry) => (
+                  <div key={`detail-${entry.key}`} className={styles.detailListItem}>
+                    <p className={styles.detailLabel}>{entry.label}</p>
+                    <p className={styles.detailValue}>{entry.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  className={`${styles.subModeButton} ${isActive ? styles.subModeButtonActive : ''}`}
-                  onClick={() => setActiveMode(option.id)}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+          <div className={styles.modalActions}>
+            <button type="button" className={styles.modalSecondaryButton} onClick={closeDetailModal}>
+              Close
+            </button>
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  ) : null;
 
   function renderReadOnlyTable(viewKey) {
     const config = READ_ONLY_TABLE_CONFIG[viewKey];
@@ -1626,37 +2155,62 @@ export default function AdminDataPanels({
     const canCreateRows = mutableConfig?.canCreate === true;
     const accessLabel = getReadOnlyViewAccessLabel(viewKey);
     const countLabel = hasAppliedSearch ? String(rows.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+    const hasSearchInputValue = searchInputValue.trim().length > 0;
+    const canResetSearch = hasAppliedSearch;
+    const canSubmitSearch = searchInputValue.trim().length >= MIN_SEARCH_LENGTH;
 
     return (
       <div className={styles.subModeContent}>
         <div className={styles.header}>
-          <h2 className={styles.title}>{config.title}</h2>
-          <div className={styles.readOnlyMetaBlock}>
-            {canCreateRows ? (
-              <button type="button" className={styles.addButton} onClick={() => openCreateCrudModal(viewKey)}>
-                Add row
-              </button>
-            ) : null}
-            {!isLoading ? (
-              <div className={styles.countAccessRow}>
-                <p className={styles.count}>{countLabel}</p>
-                <p className={styles.accessText}>{accessLabel}</p>
-              </div>
-            ) : null}
-            {canEditRows ? <p className={styles.imagesHint}>Click row to modify</p> : null}
+          <div className={styles.headerMain}>
+            <h2 className={styles.title}>{config.title}</h2>
+            <p className={styles.accessText}>{accessLabel}</p>
+            <p className={styles.imagesHint}>{canEditRows ? 'Click row to read/modify' : 'Click row to read'}</p>
           </div>
+          {canCreateRows ? (
+            <button type="button" className={styles.addButton} onClick={() => openCreateCrudModal(viewKey)}>
+              Add row
+            </button>
+          ) : null}
         </div>
 
         <form className={styles.searchRow} onSubmit={(event) => submitReadOnlySearch(event, viewKey)}>
-          <input
-            type="search"
-            value={searchInputValue}
-            onChange={(event) => handleReadOnlySearchInputChange(viewKey, event.target.value)}
-            placeholder={`Search ${config.title.toLowerCase()} (3 characters minimum)`}
-            className={styles.searchInput}
-          />
-          <button type="submit" className={styles.searchButton}>
+          <div className={styles.searchInputWrap}>
+            <input
+              type="search"
+              value={searchInputValue}
+              onChange={(event) => handleReadOnlySearchInputChange(viewKey, event.target.value)}
+              placeholder={`Search ${config.title.toLowerCase()} (3 characters minimum)`}
+              className={`${styles.searchInput} ${styles.searchInputWithCount} ${
+                hasSearchInputValue ? styles.searchInputWithClear : ''
+              }`}
+            />
+            <div className={styles.searchMetaOverlay}>
+              <p className={`${styles.searchCountLabel} ${hasSearchInputValue ? styles.searchCountLabelWithClear : ''}`}>
+                {countLabel}
+              </p>
+              {hasSearchInputValue ? (
+                <button
+                  type="button"
+                  className={styles.searchClearButton}
+                  aria-label={`Clear ${config.title} search`}
+                  onClick={() => clearReadOnlySearch(viewKey)}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <button type="submit" className={styles.searchButton} disabled={!canSubmitSearch}>
             Search
+          </button>
+          <button
+            type="button"
+            className={styles.defaultButton}
+            onClick={() => clearReadOnlySearch(viewKey)}
+            disabled={!canResetSearch}
+          >
+            Show Default
           </button>
         </form>
 
@@ -1665,54 +2219,55 @@ export default function AdminDataPanels({
         ) : loadError ? (
           <p className={styles.emptyText}>{loadError}</p>
         ) : rows.length > 0 ? (
-          <div className={styles.tableScrollWrap}>
-            <table className={styles.dataTable}>
-              <thead>
-                <tr>
-                  {config.columns.map((column) => (
-                    <th key={column} className={styles.dataTableHeaderCell}>
-                      {formatColumnLabel(column)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, rowIndex) => {
-                  const rowKey = toDisplayText(row?.id) ?? `${viewKey}-${rowIndex}`;
+          <div className={`${styles.scrollList} ${styles.expandedScroll}`}>
+            {rows.map((row, rowIndex) => {
+              const rowKey = toDisplayText(row?.id) ?? `${viewKey}-${rowIndex}`;
+              const cardModel = getReadOnlyCardModel(viewKey, row);
+              const hasThumbnailSlot =
+                Boolean(cardModel.imageUrl) || viewKey === 'captionRequests' || viewKey === 'captionExamples';
+              const openRow = () => {
+                if (canEditRows) {
+                  openEditCrudModal(viewKey, row);
+                  return;
+                }
 
-                  return (
-                    <tr
-                      key={rowKey}
-                      className={canEditRows ? styles.dataTableRowEditable : ''}
-                      onClick={canEditRows ? () => openEditCrudModal(viewKey, row) : undefined}
-                      onKeyDown={
-                        canEditRows
-                          ? (event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                openEditCrudModal(viewKey, row);
-                              }
-                            }
-                          : undefined
-                      }
-                      tabIndex={canEditRows ? 0 : undefined}
-                    >
-                      {config.columns.map((column) => {
-                        const cellValue = formatReadOnlyCellValue(row?.[column]);
+                openDetailModal({
+                  title: `Read ${getSingularTableLabel(viewKey, config.title)}`,
+                  row,
+                  prioritizedKeys: config.columns,
+                  imageUrl: cardModel.imageUrl,
+                  imageAlt: `${config.title} image`,
+                  isWide: viewKey !== 'llmPromptChains',
+                });
+              };
 
-                        return (
-                          <td key={`${rowKey}-${column}`} className={styles.dataTableCell}>
-                            <span className={styles.dataTableCellText} title={cellValue}>
-                              {cellValue}
-                            </span>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              return (
+                <button
+                  key={rowKey}
+                  type="button"
+                  className={`${styles.listItem} ${styles.listItemButton} ${styles.readOnlyCardButton} ${
+                    hasThumbnailSlot ? styles.captionListItem : ''
+                  }`}
+                  onClick={openRow}
+                >
+                  {hasThumbnailSlot ? (
+                    cardModel.imageUrl ? (
+                      <img src={cardModel.imageUrl} alt={`${config.title} image`} loading="lazy" className={styles.captionThumb} />
+                    ) : (
+                      <div className={styles.captionThumbPlaceholder}>No image</div>
+                    )
+                  ) : null}
+                  <div className={styles.captionBody}>
+                    <p className={styles.primaryText}>{cardModel.primaryText}</p>
+                    {cardModel.secondaryLines.map((line, lineIndex) => (
+                      <p key={`${rowKey}-secondary-${lineIndex}`} className={styles.secondaryText}>
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         ) : (
           <p className={styles.emptyText}>No rows found.</p>
@@ -1722,42 +2277,82 @@ export default function AdminDataPanels({
   }
 
   function renderUsersListContent() {
-    const countLabel = hasUserSearch ? String(filteredUsers.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+    const countLabel = hasUserSearch ? String(visibleUsers.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+    const hasSearchInputValue = userSearchInput.trim().length > 0;
+    const canResetSearch = hasUserSearch;
+    const canSubmitSearch = userSearchInput.trim().length >= MIN_SEARCH_LENGTH;
 
     return (
       <div className={styles.subModeContent}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Users</h2>
-          <div className={styles.readOnlyMetaBlock}>
-            <div className={styles.countAccessRow}>
-              <p className={styles.count}>{countLabel}</p>
-              <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
-            </div>
+          <div className={styles.headerMain}>
+            <h2 className={styles.title}>Users</h2>
+            <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
+            <p className={styles.imagesHint}>Click row to read</p>
           </div>
         </div>
 
         <form className={styles.searchRow} onSubmit={submitUserSearch}>
-          <input
-            type="search"
-            value={userSearchInput}
-            onChange={(event) => setUserSearchInput(event.target.value)}
-            placeholder="Search users (3 characters minimum)"
-            className={styles.searchInput}
-          />
-          <button type="submit" className={styles.searchButton}>
+          <div className={styles.searchInputWrap}>
+            <input
+              type="search"
+              value={userSearchInput}
+              onChange={(event) => setUserSearchInput(event.target.value)}
+              placeholder="Search users (3 characters minimum)"
+              className={`${styles.searchInput} ${styles.searchInputWithCount} ${
+                hasSearchInputValue ? styles.searchInputWithClear : ''
+              }`}
+            />
+            <div className={styles.searchMetaOverlay}>
+              <p className={`${styles.searchCountLabel} ${hasSearchInputValue ? styles.searchCountLabelWithClear : ''}`}>
+                {countLabel}
+              </p>
+              {hasSearchInputValue ? (
+                <button
+                  type="button"
+                  className={styles.searchClearButton}
+                  aria-label="Clear users search"
+                  onClick={clearUserSearch}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <button type="submit" className={styles.searchButton} disabled={!canSubmitSearch}>
             Search
+          </button>
+          <button type="button" className={styles.defaultButton} onClick={clearUserSearch} disabled={!canResetSearch}>
+            Show Default
           </button>
         </form>
 
         <div className={`${styles.scrollList} ${styles.expandedScroll}`}>
-          {showUsersIndexing ? (
+          {hasUserSearch && isSearchingUsers ? (
+            <p className={styles.emptyText}>indexing...</p>
+          ) : hasUserSearch && userSearchError ? (
+            <p className={styles.emptyText}>{userSearchError}</p>
+          ) : showUsersIndexing ? (
             <p className={styles.emptyText}>indexing...</p>
           ) : visibleUsers.length > 0 ? (
-            visibleUsers.map((user) => {
+            visibleUsers.map((user, userIndex) => {
               const { mainText, leftSubText, rightSubText } = getUserDisplayModel(user);
+              const userKey = toDisplayText(user?.id) ?? `user-${userIndex}`;
 
               return (
-                <div key={user.id} className={styles.listItem}>
+                <button
+                  key={userKey}
+                  type="button"
+                  className={`${styles.listItem} ${styles.listItemButton}`}
+                  onClick={() =>
+                    openDetailModal({
+                      title: `Read ${getSingularTableLabel('users')}`,
+                      row: user,
+                      prioritizedKeys: ['id', 'first_name', 'last_name', 'email', 'is_superadmin', 'created_datetime_utc'],
+                      isWide: false,
+                    })
+                  }
+                >
                   <div className={styles.userHeadingRow}>
                     <p className={styles.primaryText}>{mainText}</p>
                     {user.is_superadmin ? <span className={styles.userInlineBadge}>superadmin</span> : null}
@@ -1771,7 +2366,7 @@ export default function AdminDataPanels({
                     </div>
                   ) : null}
                   {!rightSubText && leftSubText ? <p className={styles.secondaryText}>{leftSubText}</p> : null}
-                </div>
+                </button>
               );
             })
           ) : (
@@ -1783,35 +2378,67 @@ export default function AdminDataPanels({
   }
 
   function renderCaptionsListContent() {
-    const countLabel = hasCaptionSearch ? String(filteredCaptions.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+    const countLabel = hasCaptionSearch ? String(visibleCaptions.length) : `Displaying ${DEFAULT_DISPLAY_COUNT}`;
+    const hasSearchInputValue = captionSearchInput.trim().length > 0;
+    const canResetSearch = hasCaptionSearch;
+    const canSubmitSearch = captionSearchInput.trim().length >= MIN_SEARCH_LENGTH;
 
     return (
       <div className={styles.subModeContent}>
         <div className={styles.header}>
-          <h2 className={styles.title}>Captions</h2>
-          <div className={styles.readOnlyMetaBlock}>
-            <div className={styles.countAccessRow}>
-              <p className={styles.count}>{countLabel}</p>
-              <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
-            </div>
+          <div className={styles.headerMain}>
+            <h2 className={styles.title}>Captions</h2>
+            <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
+            <p className={styles.imagesHint}>Click row to read</p>
           </div>
         </div>
 
         <form className={styles.searchRow} onSubmit={submitCaptionSearch}>
-          <input
-            type="search"
-            value={captionSearchInput}
-            onChange={(event) => setCaptionSearchInput(event.target.value)}
-            placeholder="Search captions (3 characters minimum)"
-            className={styles.searchInput}
-          />
-          <button type="submit" className={styles.searchButton}>
+          <div className={styles.searchInputWrap}>
+            <input
+              type="search"
+              value={captionSearchInput}
+              onChange={(event) => setCaptionSearchInput(event.target.value)}
+              placeholder="Search captions (3 characters minimum)"
+              className={`${styles.searchInput} ${styles.searchInputWithCount} ${
+                hasSearchInputValue ? styles.searchInputWithClear : ''
+              }`}
+            />
+            <div className={styles.searchMetaOverlay}>
+              <p className={`${styles.searchCountLabel} ${hasSearchInputValue ? styles.searchCountLabelWithClear : ''}`}>
+                {countLabel}
+              </p>
+              {hasSearchInputValue ? (
+                <button
+                  type="button"
+                  className={styles.searchClearButton}
+                  aria-label="Clear captions search"
+                  onClick={clearCaptionSearch}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <button type="submit" className={styles.searchButton} disabled={!canSubmitSearch}>
             Search
+          </button>
+          <button
+            type="button"
+            className={styles.defaultButton}
+            onClick={clearCaptionSearch}
+            disabled={!canResetSearch}
+          >
+            Show Default
           </button>
         </form>
 
         <div className={`${styles.scrollList} ${styles.expandedScroll}`}>
-          {showCaptionsIndexing ? (
+          {hasCaptionSearch && isSearchingCaptions ? (
+            <p className={styles.emptyText}>indexing...</p>
+          ) : hasCaptionSearch && captionSearchError ? (
+            <p className={styles.emptyText}>{captionSearchError}</p>
+          ) : showCaptionsIndexing ? (
             <p className={styles.emptyText}>indexing...</p>
           ) : visibleCaptions.length > 0 ? (
             visibleCaptions.map((caption) => {
@@ -1819,7 +2446,20 @@ export default function AdminDataPanels({
               const captionThumbnailUrl = getCaptionThumbnailUrl(caption, imageUrlById);
 
               return (
-                <div key={caption.id} className={`${styles.listItem} ${styles.captionListItem}`}>
+                <button
+                  key={caption.id}
+                  type="button"
+                  className={`${styles.listItem} ${styles.listItemButton} ${styles.captionListItem}`}
+                  onClick={() =>
+                    openDetailModal({
+                      title: `Read ${getSingularTableLabel('captions')}`,
+                      row: caption,
+                      prioritizedKeys: ['id', 'created_datetime_utc', 'profile_id', 'image_id', 'is_public', 'content'],
+                      imageUrl: captionThumbnailUrl,
+                      imageAlt: 'Caption image',
+                    })
+                  }
+                >
                   {captionThumbnailUrl ? (
                     <img src={captionThumbnailUrl} alt="Caption image" loading="lazy" className={styles.captionThumb} />
                   ) : (
@@ -1831,7 +2471,7 @@ export default function AdminDataPanels({
                     <p className={styles.secondaryText}>user: {caption.profile_id}</p>
                     {isPublicCaption(caption) ? <span className={`${styles.badge} ${styles.publicBadge}`}>public</span> : null}
                   </div>
-                </div>
+                </button>
               );
             })
           ) : (
@@ -1843,41 +2483,65 @@ export default function AdminDataPanels({
   }
 
   function renderImagesPanel() {
-    const countLabel = hasImageSearch ? String(filteredImages.length) : `Displaying ${DEFAULT_IMAGE_COUNT}`;
+    const countLabel = hasImageSearch ? String(visibleImages.length) : `Displaying ${DEFAULT_IMAGE_COUNT}`;
+    const hasSearchInputValue = imageSearchInput.trim().length > 0;
+    const canResetSearch = hasImageSearch;
+    const canSubmitSearch = imageSearchInput.trim().length >= MIN_SEARCH_LENGTH;
 
     return (
       <article className={`${styles.panel} ${styles.widePanel}`}>
-        <div className={`${styles.header} ${styles.imagesHeader}`}>
-          <div className={styles.imagesHeaderLeft}>
+        <div className={styles.header}>
+          <div className={styles.headerMain}>
             <h2 className={styles.title}>Images</h2>
-            <button type="button" className={styles.addButton} onClick={handleOpenAddImageModal}>
-              Add image
-            </button>
+            <p className={styles.accessText}>{CRUD_ACCESS_LABEL}</p>
+            <p className={styles.imagesHint}>Click on card to read/modify</p>
           </div>
-          <div className={styles.imagesCountBlock}>
-            <div className={styles.countAccessRow}>
-              <p className={styles.count}>{countLabel}</p>
-              <p className={styles.accessText}>{CRUD_ACCESS_LABEL}</p>
-            </div>
-            <p className={styles.imagesHint}>Click on image to modify</p>
-          </div>
+          <button type="button" className={styles.addButton} onClick={handleOpenAddImageModal}>
+            Add image
+          </button>
         </div>
 
         <form className={styles.searchRow} onSubmit={submitImageSearch}>
-          <input
-            type="search"
-            value={imageSearchInput}
-            onChange={(event) => setImageSearchInput(event.target.value)}
-            placeholder="Search images (3 characters minimum)"
-            className={styles.searchInput}
-          />
-          <button type="submit" className={styles.searchButton}>
+          <div className={styles.searchInputWrap}>
+            <input
+              type="search"
+              value={imageSearchInput}
+              onChange={(event) => setImageSearchInput(event.target.value)}
+              placeholder="Search images (3 characters minimum)"
+              className={`${styles.searchInput} ${styles.searchInputWithCount} ${
+                hasSearchInputValue ? styles.searchInputWithClear : ''
+              }`}
+            />
+            <div className={styles.searchMetaOverlay}>
+              <p className={`${styles.searchCountLabel} ${hasSearchInputValue ? styles.searchCountLabelWithClear : ''}`}>
+                {countLabel}
+              </p>
+              {hasSearchInputValue ? (
+                <button
+                  type="button"
+                  className={styles.searchClearButton}
+                  aria-label="Clear images search"
+                  onClick={clearImageSearch}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <button type="submit" className={styles.searchButton} disabled={!canSubmitSearch}>
             Search
+          </button>
+          <button type="button" className={styles.defaultButton} onClick={clearImageSearch} disabled={!canResetSearch}>
+            Show Default
           </button>
         </form>
 
         <div className={`${styles.scrollList} ${styles.expandedScroll}`}>
-          {showImagesIndexing ? (
+          {hasImageSearch && isSearchingImages ? (
+            <p className={styles.emptyText}>indexing...</p>
+          ) : hasImageSearch && imageSearchError ? (
+            <p className={styles.emptyText}>{imageSearchError}</p>
+          ) : showImagesIndexing ? (
             <p className={styles.emptyText}>indexing...</p>
           ) : visibleImages.length > 0 ? (
             <div className={styles.imageGrid}>
@@ -1915,38 +2579,24 @@ export default function AdminDataPanels({
   if (panelMode === 'users') {
     modeBody = (
       <article className={`${styles.panel} ${styles.widePanel}`}>
-        {renderSubModeSwitcher(USERS_SUB_MODE_OPTIONS, activeUsersSubMode, setActiveUsersSubMode, 'Users data mode')}
         {activeUsersSubMode === 'users' ? renderUsersListContent() : renderReadOnlyTable(activeUsersSubMode)}
       </article>
     );
   } else if (panelMode === 'captions') {
     modeBody = (
       <article className={`${styles.panel} ${styles.widePanel}`}>
-        {renderSubModeSwitcher(
-          CAPTIONS_SUB_MODE_OPTIONS,
-          activeCaptionsSubMode,
-          setActiveCaptionsSubMode,
-          'Captions data mode'
-        )}
         {activeCaptionsSubMode === 'captions' ? renderCaptionsListContent() : renderReadOnlyTable(activeCaptionsSubMode)}
       </article>
     );
   } else if (panelMode === 'humorFlavors') {
     modeBody = (
       <article className={`${styles.panel} ${styles.widePanel}`}>
-        {renderSubModeSwitcher(
-          HUMOR_FLAVORS_SUB_MODE_OPTIONS,
-          activeHumorSubMode,
-          setActiveHumorSubMode,
-          'Humor flavors data mode'
-        )}
         {renderReadOnlyTable(activeHumorSubMode)}
       </article>
     );
   } else if (panelMode === 'llms') {
     modeBody = (
       <article className={`${styles.panel} ${styles.widePanel}`}>
-        {renderSubModeSwitcher(LLMS_SUB_MODE_OPTIONS, activeLlmsSubMode, setActiveLlmsSubMode, 'LLM data mode')}
         {renderReadOnlyTable(activeLlmsSubMode)}
       </article>
     );
@@ -1955,11 +2605,12 @@ export default function AdminDataPanels({
   }
 
   return (
-    <section className={`${styles.wrapper} ${panelMode !== 'overview' ? styles.flushTop : ''}`}>
+    <section className={styles.wrapper}>
       {modeBody}
       {isClient && addImageModal ? createPortal(addImageModal, document.body) : null}
       {isClient && editImageModal ? createPortal(editImageModal, document.body) : null}
       {isClient && crudModal ? createPortal(crudModal, document.body) : null}
+      {isClient && detailModal ? createPortal(detailModal, document.body) : null}
     </section>
   );
 }

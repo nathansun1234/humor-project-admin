@@ -271,7 +271,7 @@ function toSearchableText(value) {
 function buildBaseQuery(supabase, config) {
   let query = supabase
     .from(config.tableName)
-    .select(config.columns.join(','))
+    .select('*')
     .order(config.orderColumn, { ascending: false });
 
   if (toDisplayText(config.tieBreakerColumn)) {
@@ -334,6 +334,60 @@ async function searchRows(supabase, config, normalizedQuery, rowLimit) {
   return { rows: matchedRows, error: null };
 }
 
+async function enrichCaptionRequestRows(supabase, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return rows;
+  }
+
+  const profileIds = [...new Set(rows.map((row) => toDisplayText(row?.profile_id)).filter(Boolean))];
+  const imageIds = [...new Set(rows.map((row) => toDisplayText(row?.image_id)).filter(Boolean))];
+  const profileById = new Map();
+  const imageUrlById = new Map();
+
+  if (profileIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from('profiles')
+      .select('id,first_name,last_name,email')
+      .in('id', profileIds);
+
+    for (const profile of profileRows ?? []) {
+      const profileId = toDisplayText(profile?.id);
+      if (!profileId) {
+        continue;
+      }
+
+      profileById.set(profileId, profile);
+    }
+  }
+
+  if (imageIds.length > 0) {
+    const { data: imageRows } = await supabase.from('images').select('id,url').in('id', imageIds);
+
+    for (const image of imageRows ?? []) {
+      const imageId = toDisplayText(image?.id);
+      if (!imageId) {
+        continue;
+      }
+
+      imageUrlById.set(imageId, toDisplayText(image?.url));
+    }
+  }
+
+  return rows.map((row) => {
+    const profileId = toDisplayText(row?.profile_id);
+    const imageId = toDisplayText(row?.image_id);
+    const profile = profileId ? profileById.get(profileId) : null;
+
+    return {
+      ...row,
+      profile_first_name: profile?.first_name ?? null,
+      profile_last_name: profile?.last_name ?? null,
+      profile_email: profile?.email ?? null,
+      image_url: imageId ? imageUrlById.get(imageId) ?? null : null,
+    };
+  });
+}
+
 async function getAuthorizedSupabaseClient() {
   const supabase = await createClient();
   const {
@@ -390,9 +444,12 @@ export async function GET(request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  const responseRows =
+    viewKey === 'captionRequests' ? await enrichCaptionRequestRows(supabase, rows).catch(() => rows) : rows;
+
   return NextResponse.json({
     view: viewKey,
-    rows,
+    rows: responseRows,
   });
 }
 
@@ -439,7 +496,7 @@ export async function POST(request) {
   const { data, error } = await supabase
     .from(mutationConfig.tableName)
     .insert(values)
-    .select(tableConfig.columns.join(','))
+    .select('*')
     .single();
 
   if (error) {
@@ -497,7 +554,7 @@ export async function PATCH(request) {
     .from(mutationConfig.tableName)
     .update(values)
     .eq(mutationConfig.idColumn, rowId)
-    .select(tableConfig.columns.join(','))
+    .select('*')
     .single();
 
   if (error) {

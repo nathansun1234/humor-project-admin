@@ -49,22 +49,55 @@ function dedupeById(rows) {
 
 const MODE_OPTIONS = [
   { id: 'overview', label: 'Overview' },
-  { id: 'users', label: 'Users' },
-  { id: 'captions', label: 'Captions' },
-  { id: 'images', label: 'Images' },
-  { id: 'humorFlavors', label: 'Humor Flavors' },
+  { id: 'users', label: 'Access Control' },
+  { id: 'captions', label: 'Caption Management' },
+  { id: 'images', label: 'Image Management' },
+  { id: 'humorFlavors', label: 'Humor Workflow' },
   { id: 'llms', label: 'LLMs' },
 ];
 const MODE_FADE_DURATION_MS = 260;
+const COMPACT_LAYOUT_QUERY = '(max-width: 1023px)';
+const USERS_SUB_MODE_OPTIONS = [
+  { id: 'users', label: 'Users' },
+  { id: 'signupDomains', label: 'Signup Domains' },
+  { id: 'whitelistedEmails', label: 'Whitelisted Emails' },
+];
+const CAPTIONS_SUB_MODE_OPTIONS = [
+  { id: 'captions', label: 'Captions' },
+  { id: 'captionRequests', label: 'Captions Requests' },
+  { id: 'captionExamples', label: 'Captions Examples' },
+  { id: 'terms', label: 'Terms' },
+];
+const HUMOR_FLAVORS_SUB_MODE_OPTIONS = [
+  { id: 'humorFlavors', label: 'Humor Flavors' },
+  { id: 'humorFlavorSteps', label: 'Humor Flavor Steps' },
+  { id: 'humorFlavorMix', label: 'Humor Mix' },
+];
+const LLMS_SUB_MODE_OPTIONS = [
+  { id: 'llmModels', label: 'LLM Models' },
+  { id: 'llmProviders', label: 'LLM Providers' },
+  { id: 'llmPromptChains', label: 'LLM Prompt Chains' },
+  { id: 'llmResponses', label: 'LLM Responses' },
+];
+const OVERVIEW_SUB_MODE_OPTIONS = [{ id: 'overview', label: 'Overview' }];
+const IMAGES_SUB_MODE_OPTIONS = [{ id: 'images', label: 'Images' }];
 
 export default function ProtectedDashboard() {
   const modeTransitionTimeoutRef = useRef(null);
+  const compactModePanelRef = useRef(null);
+  const compactModeButtonRef = useRef(null);
   const [dashboardData, setDashboardData] = useState(EMPTY_DASHBOARD);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [activePanelMode, setActivePanelMode] = useState('overview');
   const [renderedPanelMode, setRenderedPanelMode] = useState('overview');
   const [isModeContentVisible, setIsModeContentVisible] = useState(true);
+  const [activeUsersSubMode, setActiveUsersSubMode] = useState('users');
+  const [activeCaptionsSubMode, setActiveCaptionsSubMode] = useState('captions');
+  const [activeHumorSubMode, setActiveHumorSubMode] = useState('humorFlavors');
+  const [activeLlmsSubMode, setActiveLlmsSubMode] = useState('llmModels');
+  const [isCompactModeMenuOpen, setIsCompactModeMenuOpen] = useState(false);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
 
   const clearModeTransitionTimeout = useCallback(() => {
     if (modeTransitionTimeoutRef.current === null) {
@@ -83,6 +116,7 @@ export default function ProtectedDashboard() {
 
       setActivePanelMode(nextMode);
       setIsModeContentVisible(false);
+      setIsCompactModeMenuOpen(false);
       clearModeTransitionTimeout();
 
       modeTransitionTimeoutRef.current = window.setTimeout(() => {
@@ -218,6 +252,67 @@ export default function ProtectedDashboard() {
     };
   }, [clearModeTransitionTimeout]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQueryList = window.matchMedia(COMPACT_LAYOUT_QUERY);
+    const handleViewportChange = () => {
+      const isCompact = mediaQueryList.matches;
+      setIsCompactViewport(isCompact);
+
+      if (!isCompact) {
+        setIsCompactModeMenuOpen(false);
+      }
+    };
+
+    handleViewportChange();
+
+    if (typeof mediaQueryList.addEventListener === 'function') {
+      mediaQueryList.addEventListener('change', handleViewportChange);
+    } else {
+      mediaQueryList.addListener(handleViewportChange);
+    }
+
+    return () => {
+      if (typeof mediaQueryList.removeEventListener === 'function') {
+        mediaQueryList.removeEventListener('change', handleViewportChange);
+      } else {
+        mediaQueryList.removeListener(handleViewportChange);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isCompactModeMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (compactModePanelRef.current?.contains(target) || compactModeButtonRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsCompactModeMenuOpen(false);
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setIsCompactModeMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [isCompactModeMenuOpen]);
+
   const dayVotes = isLoading ? '...' : dashboardData.votes.day;
   const weekVotes = isLoading ? '...' : dashboardData.votes.week;
   const monthVotes = isLoading ? '...' : dashboardData.votes.month;
@@ -229,25 +324,160 @@ export default function ProtectedDashboard() {
   const modeContentClassName = `${styles.modeContent} ${
     isModeContentVisible ? styles.modeContentVisible : styles.modeContentHidden
   }`;
+  const secondaryModeOptions =
+    activePanelMode === 'users'
+      ? USERS_SUB_MODE_OPTIONS
+      : activePanelMode === 'captions'
+        ? CAPTIONS_SUB_MODE_OPTIONS
+        : activePanelMode === 'images'
+          ? IMAGES_SUB_MODE_OPTIONS
+          : activePanelMode === 'humorFlavors'
+            ? HUMOR_FLAVORS_SUB_MODE_OPTIONS
+            : activePanelMode === 'llms'
+              ? LLMS_SUB_MODE_OPTIONS
+              : OVERVIEW_SUB_MODE_OPTIONS;
+  const activeSecondaryMode =
+    activePanelMode === 'users'
+      ? activeUsersSubMode
+      : activePanelMode === 'captions'
+        ? activeCaptionsSubMode
+        : activePanelMode === 'images'
+          ? 'images'
+          : activePanelMode === 'humorFlavors'
+            ? activeHumorSubMode
+            : activePanelMode === 'llms'
+              ? activeLlmsSubMode
+              : 'overview';
+  const selectedSecondaryModeIndex = secondaryModeOptions.findIndex((option) => option.id === activeSecondaryMode);
+  const showCompactModeMenuButton = isCompactViewport;
+
+  function handleSecondaryModeChange(nextMode) {
+    if (activePanelMode === 'users') {
+      setActiveUsersSubMode(nextMode);
+      return;
+    }
+
+    if (activePanelMode === 'captions') {
+      setActiveCaptionsSubMode(nextMode);
+      return;
+    }
+
+    if (activePanelMode === 'humorFlavors') {
+      setActiveHumorSubMode(nextMode);
+      return;
+    }
+
+    if (activePanelMode === 'llms') {
+      setActiveLlmsSubMode(nextMode);
+    }
+  }
+
+  function renderTopLevelModeSwitcher() {
+    return (
+      <div
+        className={styles.verticalModeTrack}
+        role="tablist"
+        aria-label="Dashboard mode"
+        aria-orientation="vertical"
+        style={{ '--mode-option-count': MODE_OPTIONS.length }}
+      >
+        <div className={styles.verticalModeGrid}>
+          <span
+            aria-hidden
+            className={styles.verticalModeThumb}
+            style={{
+              transform: `translateY(calc(${Math.max(selectedModeIndex, 0)} * (var(--vertical-mode-row-height) + var(--vertical-mode-gap))))`,
+            }}
+          />
+          {MODE_OPTIONS.map((option) => {
+            const isActive = activePanelMode === option.id;
+
+            return (
+              <button
+                key={option.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={`${styles.verticalModeButton} ${isActive ? styles.verticalModeButtonActive : ''}`}
+                onClick={() => handleModeChange(option.id)}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
-      {!isLoading ? (
-        <div className={styles.modeMenuRoot}>
+      {!isLoading && !isCompactViewport ? <div className={styles.sideModeMenuRoot}>{renderTopLevelModeSwitcher()}</div> : null}
+
+      {isCompactViewport ? (
+        <>
+          <button
+            ref={compactModeButtonRef}
+            type="button"
+            aria-expanded={isCompactModeMenuOpen}
+            aria-controls="dashboard-mode-panel"
+            aria-label="Open dashboard modes"
+            className={`${styles.compactModeMenuButton} ${showCompactModeMenuButton ? styles.compactModeMenuButtonVisible : ''} ${
+              isCompactModeMenuOpen ? styles.compactModeMenuButtonHidden : ''
+            }`}
+            onClick={() => setIsCompactModeMenuOpen((open) => !open)}
+          >
+            <svg viewBox="0 0 24 24" className={styles.compactModeMenuIcon} fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="6" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="12" cy="18" r="2" />
+            </svg>
+          </button>
+          <div
+            className={`${styles.compactModeBackdrop} ${isCompactModeMenuOpen ? styles.compactModeBackdropOpen : ''}`}
+            aria-hidden
+            onClick={() => setIsCompactModeMenuOpen(false)}
+          />
+          <div
+            id="dashboard-mode-panel"
+            ref={compactModePanelRef}
+            className={`${styles.compactModePanel} ${isCompactModeMenuOpen ? styles.compactModePanelOpen : ''}`}
+          >
+            <button
+              type="button"
+              aria-label="Close dashboard modes"
+              className={styles.compactModeCloseButton}
+              onClick={() => setIsCompactModeMenuOpen(false)}
+            >
+              <svg viewBox="0 0 24 24" className={styles.compactModeCloseIcon} fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" d="M6 6l12 12" />
+                <path strokeLinecap="round" d="M18 6L6 18" />
+              </svg>
+            </button>
+            <p className={styles.compactModeTitle}>Admin Panel</p>
+            {renderTopLevelModeSwitcher()}
+          </div>
+        </>
+      ) : null}
+
+      <div className={styles.modeMenuRoot}>
+        {isLoading ? (
+          <p className={`${styles.statusMessage} ${styles.statusMessageLoading}`}>Loading admin panel data...</p>
+        ) : (
           <div
             className={styles.modeSegmentTrack}
             role="tablist"
-            aria-label="Dashboard mode"
-            style={{ '--mode-option-count': MODE_OPTIONS.length }}
+            aria-label={`${MODE_OPTIONS.find((option) => option.id === activePanelMode)?.label ?? 'Dashboard'} section`}
+            style={{ '--mode-option-count': secondaryModeOptions.length }}
           >
             <div className={styles.modeSegmentGrid}>
               <span
                 aria-hidden
                 className={styles.modeSegmentThumb}
-                style={{ transform: `translateX(${Math.max(selectedModeIndex, 0) * 100}%)` }}
+                style={{ transform: `translateX(${Math.max(selectedSecondaryModeIndex, 0) * 100}%)` }}
               />
-              {MODE_OPTIONS.map((option) => {
-                const isActive = activePanelMode === option.id;
+              {secondaryModeOptions.map((option) => {
+                const isActive = activeSecondaryMode === option.id;
 
                 return (
                   <button
@@ -256,7 +486,7 @@ export default function ProtectedDashboard() {
                     role="tab"
                     aria-selected={isActive}
                     className={`${styles.modeSegmentButton} ${isActive ? styles.modeSegmentButtonActive : ''}`}
-                    onClick={() => handleModeChange(option.id)}
+                    onClick={() => handleSecondaryModeChange(option.id)}
                   >
                     {option.label}
                   </button>
@@ -264,13 +494,10 @@ export default function ProtectedDashboard() {
               })}
             </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
 
       <div className={modeContentClassName} style={{ transitionDuration: `${MODE_FADE_DURATION_MS}ms` }}>
-        {isLoading ? (
-          <p className={`${styles.statusMessage} ${styles.statusMessageLoading}`}>Loading admin panel data...</p>
-        ) : null}
         {isOverviewMode ? (
           <>
             <section className={styles.statsPanel}>
@@ -412,6 +639,10 @@ export default function ProtectedDashboard() {
             onImageUpdated={handleImageUpdated}
             onImageDeleted={handleImageDeleted}
             panelMode={renderedPanelMode}
+            activeUsersSubMode={activeUsersSubMode}
+            activeCaptionsSubMode={activeCaptionsSubMode}
+            activeHumorSubMode={activeHumorSubMode}
+            activeLlmsSubMode={activeLlmsSubMode}
           />
         )}
       </div>

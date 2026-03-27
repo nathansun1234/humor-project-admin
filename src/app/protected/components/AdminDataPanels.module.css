@@ -10,6 +10,8 @@
 }
 
 .panel {
+  --panel-title-size: 1.75rem;
+  --panel-title-line-height: 1.2;
   border: 1px solid #e2e8f0;
   border-radius: 1.25rem;
   background: #ffffff;
@@ -26,15 +28,23 @@
 
 .header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
 }
 
+.headerMain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+  min-width: 0;
+}
+
 .title {
   margin: 0;
-  font-size: 1.75rem;
-  line-height: 1.2;
+  font-size: var(--panel-title-size);
+  line-height: var(--panel-title-line-height);
   letter-spacing: -0.02em;
   font-weight: 600;
 }
@@ -157,10 +167,20 @@
   white-space: nowrap;
 }
 
+.dataTableIdHeaderCell {
+  min-width: 6.4ch;
+  white-space: nowrap;
+}
+
 .dataTableCell {
   padding: 0.52rem 0.62rem;
   border-bottom: 1px solid #e2e8f0;
   vertical-align: top;
+}
+
+.dataTableIdCell {
+  min-width: 6.4ch;
+  white-space: nowrap;
 }
 
 .dataTableCellText {
@@ -171,17 +191,23 @@
   overflow-wrap: anywhere;
 }
 
+.dataTableIdCellText {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .dataTableRowEditable {
   cursor: pointer;
   transition: background 160ms ease;
 }
 
 .dataTableRowEditable:hover {
-  background: #fee2e2;
+  background: #e2e8f0;
 }
 
 .dataTableRowEditable:focus-visible {
-  outline: 2px solid rgb(248 113 113 / 0.8);
+  outline: 2px solid rgb(148 163 184 / 0.9);
   outline-offset: -2px;
 }
 
@@ -198,25 +224,19 @@
   color: #94a3b8;
 }
 
-.imagesHeader {
-  align-items: center;
-}
-
-.imagesHeaderLeft {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-}
-
 .addButton {
-  border: 1px solid rgb(22 163 74 / 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(var(--panel-title-size) * var(--panel-title-line-height));
+  border: 0;
   border-radius: 9999px;
-  background: rgb(220 252 231);
-  color: #166534;
+  background: rgb(16 185 129 / 0.2);
+  color: #065f46;
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1;
-  padding: 0.45rem 0.72rem;
+  padding: 0 0.72rem;
   cursor: pointer;
   transition:
     background 160ms ease,
@@ -224,19 +244,31 @@
 }
 
 .addButton:hover {
-  background: rgb(187 247 208);
+  background: rgb(16 185 129 / 0.35);
   transform: translateY(-1px);
 }
 
 .addButton:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgb(34 197 94 / 0.28);
+  box-shadow: 0 0 0 2px rgb(110 231 183 / 0.6);
 }
 
 .searchRow {
   margin-top: 0.6rem;
   display: flex;
+  align-items: center;
+  width: 100%;
   gap: 0.45rem;
+}
+
+.searchInputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  width: auto;
+  max-width: none;
+  min-width: 0;
 }
 
 .searchInput {
@@ -250,13 +282,81 @@
   min-width: 0;
 }
 
+.searchInput::-webkit-search-cancel-button,
+.searchInput::-webkit-search-decoration,
+.searchInput::-webkit-search-results-button,
+.searchInput::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
 .searchInput:focus-visible {
   outline: none;
   border-color: rgb(248 113 113 / 0.8);
   box-shadow: 0 0 0 2px rgb(248 113 113 / 0.25);
 }
 
-.searchButton {
+.searchInputWithCount {
+  padding-right: 10.8rem;
+}
+
+.searchInputWithClear {
+  padding-right: 12.1rem;
+}
+
+.searchMetaOverlay {
+  position: absolute;
+  right: 0.72rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  pointer-events: none;
+}
+
+.searchCountLabel {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.searchCountLabelWithClear {
+  transform: translateX(0.14rem);
+}
+
+.searchClearButton {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.searchClearButton:hover {
+  color: #334155;
+  background: transparent;
+}
+
+.searchClearButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(248 113 113 / 0.25);
+}
+
+.searchButton,
+.defaultButton {
   border: 1px solid #cbd5e1;
   border-radius: 0.75rem;
   background: #ffffff;
@@ -268,14 +368,27 @@
   cursor: pointer;
 }
 
-.searchButton:hover {
+.searchButton:hover:not(:disabled),
+.defaultButton:hover:not(:disabled) {
   background: #f8fafc;
 }
 
-.searchButton:focus-visible {
+.searchButton:focus-visible,
+.defaultButton:focus-visible {
   outline: none;
   border-color: rgb(248 113 113 / 0.8);
   box-shadow: 0 0 0 2px rgb(248 113 113 / 0.25);
+}
+
+@media (max-width: 900px) {
+  .searchRow {
+    flex-wrap: wrap;
+  }
+
+  .searchInputWrap {
+    width: 100%;
+    flex-basis: 100%;
+  }
 }
 
 .scrollList {
@@ -302,6 +415,30 @@
   border-radius: 0.75rem;
   background: #f1f5f9;
   padding: 0.6rem 0.7rem;
+}
+
+.listItemButton {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.listItemButton:hover {
+  background: #e2e8f0;
+}
+
+.listItemButton:focus-visible {
+  outline: none;
+  border-color: rgb(148 163 184 / 0.9);
+  box-shadow: 0 0 0 2px rgb(148 163 184 / 0.28);
+}
+
+.readOnlyCardButton {
+  display: block;
 }
 
 .captionListItem {
@@ -353,20 +490,19 @@
   text-align: left;
   cursor: pointer;
   transition:
-    transform 160ms ease,
+    background 160ms ease,
     border-color 160ms ease,
     box-shadow 160ms ease;
 }
 
 .imageCardButton:hover {
-  transform: translateY(-1px);
-  border-color: #cbd5e1;
+  background: #e2e8f0;
 }
 
 .imageCardButton:focus-visible {
   outline: none;
-  border-color: rgb(248 113 113 / 0.8);
-  box-shadow: 0 0 0 2px rgb(248 113 113 / 0.25);
+  border-color: rgb(148 163 184 / 0.9);
+  box-shadow: 0 0 0 2px rgb(148 163 184 / 0.28);
 }
 
 .imagePreview {
@@ -542,6 +678,25 @@
   gap: 0.7rem;
 }
 
+.modalInlineLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 0.8rem;
+}
+
+.modalInlineLayoutWithImage {
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.modalInlineFields {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
 .formField {
   display: flex;
   flex-direction: column;
@@ -573,12 +728,8 @@
 }
 
 .formTextarea {
-  resize: vertical;
-}
-
-.autoExpandTextarea {
   resize: none;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .fileMeta {
@@ -624,6 +775,27 @@
   overflow: hidden;
 }
 
+.modalInlineLayout .editPreviewFrame {
+  min-height: 13rem;
+}
+
+.modalInlineLayoutWithImage .editPreviewFrame {
+  height: auto;
+  min-height: 100%;
+}
+
+.modalInlineLayoutWithImage .editPreviewImage {
+  height: 100%;
+  max-height: none;
+  min-height: 100%;
+  object-fit: contain;
+}
+
+.modalInlineLayoutWithImage .editPreviewEmpty {
+  height: 100%;
+  min-height: 100%;
+}
+
 .editPreviewImage {
   display: block;
   width: 100%;
@@ -644,21 +816,36 @@
   color: #64748b;
 }
 
-.editMetaGrid {
+.detailList {
+  border: 1px solid #dbe3ed;
+  border-radius: 0.72rem;
+  background: #f8fafc;
+  padding: 0.52rem 0.62rem;
   display: flex;
   flex-direction: column;
-  gap: 0.22rem;
+  gap: 0.45rem;
 }
 
-.editMetaText {
+.detailListItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.16rem;
+}
+
+.detailLabel {
   margin: 0;
-  font-size: 0.76rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  font-weight: 600;
   color: #64748b;
-  overflow-wrap: anywhere;
 }
 
-.editMetaTextCentered {
-  text-align: center;
+.detailValue {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #0f172a;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .checkboxRow {
@@ -733,13 +920,13 @@
 }
 
 .modalPrimaryButton {
-  border: 1px solid rgb(239 68 68 / 0.72);
-  background: rgb(239 68 68);
-  color: #ffffff;
+  border: 0;
+  background: rgb(16 185 129 / 0.2);
+  color: #065f46;
 }
 
 .modalPrimaryButton:hover {
-  background: rgb(220 38 38);
+  background: rgb(16 185 129 / 0.35);
 }
 
 .modalDeleteButton,
@@ -753,30 +940,33 @@
 }
 
 .modalDeleteButton {
-  border: 1px solid rgb(239 68 68 / 0.72);
-  background: rgb(239 68 68);
-  color: #ffffff;
+  border: 0;
+  background: rgb(244 63 94 / 0.2);
+  color: #9f1239;
 }
 
 .modalDeleteButton:hover {
-  background: rgb(220 38 38);
+  background: rgb(244 63 94 / 0.35);
 }
 
 .modalSuccessButton {
-  border: 1px solid rgb(34 197 94 / 0.72);
-  background: rgb(34 197 94);
-  color: #ffffff;
+  border: 0;
+  background: rgb(16 185 129 / 0.2);
+  color: #065f46;
 }
 
 .modalSuccessButton:hover {
-  background: rgb(22 163 74);
+  background: rgb(16 185 129 / 0.35);
 }
 
+.addButton:disabled,
+.searchButton:disabled,
+.defaultButton:disabled,
 .modalSecondaryButton:disabled,
 .modalPrimaryButton:disabled,
 .modalDeleteButton:disabled,
 .modalSuccessButton:disabled {
-  opacity: 0.65;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -818,15 +1008,16 @@
   .modalCard {
     padding: 0.88rem;
   }
+
+  .modalInlineLayoutWithImage {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (min-width: 640px) {
   .panel {
+    --panel-title-size: 2rem;
     padding: 1.5rem;
-  }
-
-  .title {
-    font-size: 2rem;
   }
 
   .subModeButton {
@@ -880,13 +1071,11 @@
 }
 
 :global(html.dark) .addButton {
-  border-color: rgb(34 197 94 / 0.68);
-  background: rgb(20 83 45 / 0.45);
-  color: #bbf7d0;
+  color: #d1fae5;
 }
 
 :global(html.dark) .addButton:hover {
-  background: rgb(22 101 52 / 0.54);
+  background: rgb(16 185 129 / 0.35);
 }
 
 :global(html.dark) .searchInput {
@@ -901,8 +1090,28 @@
   color: #f8fafc;
 }
 
-:global(html.dark) .searchButton:hover {
+:global(html.dark) .defaultButton {
+  border-color: rgb(255 255 255 / 0.2);
+  background: rgb(15 15 15 / 0.85);
+  color: #f8fafc;
+}
+
+:global(html.dark) .searchButton:hover:not(:disabled),
+:global(html.dark) .defaultButton:hover:not(:disabled) {
   background: rgb(30 30 30 / 0.85);
+}
+
+:global(html.dark) .searchCountLabel {
+  color: #cbd5e1;
+}
+
+:global(html.dark) .searchClearButton {
+  color: #cbd5e1;
+}
+
+:global(html.dark) .searchClearButton:hover {
+  color: #f8fafc;
+  background: transparent;
 }
 
 :global(html.dark) .modalCard {
@@ -931,12 +1140,11 @@
 }
 
 :global(html.dark) .modalPrimaryButton {
-  border-color: rgb(248 113 113 / 0.7);
-  background: rgb(185 28 28);
+  color: #d1fae5;
 }
 
 :global(html.dark) .modalPrimaryButton:hover {
-  background: rgb(220 38 38);
+  background: rgb(16 185 129 / 0.35);
 }
 
 :global(html.dark) .modalActionsSticky {
@@ -945,21 +1153,19 @@
 }
 
 :global(html.dark) .modalDeleteButton {
-  border-color: rgb(248 113 113 / 0.72);
-  background: rgb(185 28 28);
+  color: #ffe4e6;
 }
 
 :global(html.dark) .modalDeleteButton:hover {
-  background: rgb(220 38 38);
+  background: rgb(244 63 94 / 0.35);
 }
 
 :global(html.dark) .modalSuccessButton {
-  border-color: rgb(74 222 128 / 0.72);
-  background: rgb(22 163 74);
+  color: #d1fae5;
 }
 
 :global(html.dark) .modalSuccessButton:hover {
-  background: rgb(21 128 61);
+  background: rgb(16 185 129 / 0.35);
 }
 
 :global(html.dark) .formInput,
@@ -992,8 +1198,7 @@
   background: #000000;
 }
 
-:global(html.dark) .editPreviewEmpty,
-:global(html.dark) .editMetaText {
+:global(html.dark) .editPreviewEmpty {
   color: #cbd5e1;
 }
 
@@ -1007,9 +1212,26 @@
   color: #fca5a5;
 }
 
+:global(html.dark) .detailList {
+  border-color: rgb(255 255 255 / 0.2);
+  background: rgb(15 15 15 / 0.85);
+}
+
+:global(html.dark) .detailLabel {
+  color: #cbd5e1;
+}
+
+:global(html.dark) .detailValue {
+  color: #f8fafc;
+}
+
 :global(html.dark) .listItem {
   border-color: rgb(255 255 255 / 0.1);
   background: rgb(15 15 15 / 0.7);
+}
+
+:global(html.dark) .listItemButton:hover {
+  background: rgb(71 85 105 / 0.4);
 }
 
 :global(html.dark) .tableScrollWrap {
@@ -1032,7 +1254,7 @@
 }
 
 :global(html.dark) .dataTableRowEditable:hover {
-  background: rgb(127 29 29 / 0.45);
+  background: rgb(71 85 105 / 0.4);
 }
 
 :global(html.dark) .imagePreview {
@@ -1046,7 +1268,7 @@
 }
 
 :global(html.dark) .imageCardButton:hover {
-  border-color: rgb(255 255 255 / 0.24);
+  background: rgb(71 85 105 / 0.4);
 }
 
 :global(html.dark) .imagePlaceholder {

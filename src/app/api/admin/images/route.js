@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-const IMAGE_SELECT_COLUMNS =
-  'id,url,image_description,additional_context,is_public,is_common_use,celebrity_recognition,created_datetime_utc,modified_datetime_utc';
-const IMAGE_METADATA_SELECT_COLUMNS = `${IMAGE_SELECT_COLUMNS},embedding`;
+const IMAGE_SELECT_COLUMNS = '*';
+const IMAGE_METADATA_SELECT_COLUMNS = '*';
 
 function toDisplayText(value) {
   const normalizedValue = String(value ?? '').trim();

@@ -2,7 +2,25 @@
   --page-bg-base: #fef2f2;
   --page-top-radial: rgba(239, 68, 68, 0.1);
   --page-bottom-radial: rgba(239, 68, 68, 0.08);
+  --header-control-size: 2.75rem;
+  --desktop-side-rail-space: 16rem;
+  --desktop-page-gutter: 1.5rem;
+  --desktop-content-left-inset: calc(var(--desktop-side-rail-space) + var(--desktop-page-gutter));
+  --desktop-content-right-inset: var(--desktop-page-gutter);
+  --desktop-settings-button-size: var(--header-control-size);
+  --desktop-header-gap: 0.75rem;
+  --compact-page-gutter: 1rem;
+  --compact-header-button-size: var(--header-control-size);
+  --compact-header-gap: 0.75rem;
+  --compact-mode-safe-inset: calc(
+    var(--compact-page-gutter) + var(--compact-header-button-size) + var(--compact-header-gap)
+  );
+  --desktop-mode-right-inset: calc(
+    var(--desktop-content-right-inset) + var(--desktop-settings-button-size) + var(--desktop-header-gap)
+  );
+  --vertical-mode-track-bg: rgb(226 232 240 / 0.9);
   position: relative;
+  isolation: isolate;
   min-height: 100vh;
   overflow: hidden;
   background: var(--page-bg-base);
@@ -12,8 +30,9 @@
 
 .backgroundLayer {
   pointer-events: none;
-  position: absolute;
+  position: fixed;
   inset: 0;
+  z-index: 0;
   background:
     radial-gradient(circle at top, var(--page-top-radial), transparent 48%),
     radial-gradient(circle at bottom, var(--page-bottom-radial), transparent 44%);
@@ -21,10 +40,12 @@
 
 .shell {
   position: relative;
+  z-index: 1;
   margin: 0 auto;
   min-height: calc(100vh - 3rem);
   width: 100%;
   max-width: 72rem;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -66,6 +87,215 @@
   transform: translateY(-0.72rem);
 }
 
+.sideModeMenuRoot {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 1.5rem;
+  z-index: 96;
+  width: 12.25rem;
+  transform: translateY(-50%);
+}
+
+.verticalModeTrack {
+  --vertical-mode-row-height: 2.3rem;
+  --vertical-mode-gap: 0.24rem;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.verticalModeGrid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--vertical-mode-gap);
+  width: 100%;
+}
+
+.verticalModeThumb {
+  pointer-events: none;
+  position: absolute;
+  left: 0;
+  right: 0.24rem;
+  top: 0;
+  height: var(--vertical-mode-row-height);
+  border-radius: 0.9rem;
+  background: #ffffff;
+  box-shadow:
+    0 10px 18px -14px rgb(15 23 42 / 0.5),
+    inset 0 0 0 1px rgb(15 23 42 / 0.07);
+  transition: transform 250ms cubic-bezier(0.2, 0.78, 0.18, 1);
+}
+
+.verticalModeButton {
+  position: relative;
+  z-index: 1;
+  height: var(--vertical-mode-row-height);
+  border: 0;
+  border-radius: 0.9rem;
+  background: transparent;
+  color: #475569;
+  font-size: 0.88rem;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  padding: 0.25rem 0.95rem;
+  cursor: pointer;
+  transition: color 180ms ease;
+  text-align: left;
+}
+
+.verticalModeButtonActive {
+  color: #0f172a;
+}
+
+.compactModeMenuButton {
+  pointer-events: none;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 117;
+  display: inline-flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  background: #ffffff;
+  color: #334155;
+  box-shadow:
+    0 10px 25px -10px rgb(15 23 42 / 0.35),
+    0 0 0 1px rgb(100 116 139 / 0.25);
+  opacity: 0;
+  transform: translateY(-0.35rem) scale(0.96);
+  transition:
+    background-color 0.2s ease,
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.compactModeMenuButtonVisible {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.compactModeMenuButtonHidden {
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-0.35rem) scale(0.96);
+}
+
+.compactModeMenuButton:hover {
+  background: #f8fafc;
+}
+
+.compactModeMenuButton:focus-visible {
+  outline: none;
+  box-shadow:
+    0 10px 25px -10px rgb(15 23 42 / 0.35),
+    0 0 0 2px rgb(59 130 246 / 0.35);
+}
+
+.compactModeMenuIcon {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+.compactModeBackdrop {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 105;
+  opacity: 0;
+  background: transparent;
+  backdrop-filter: blur(1.5px);
+  transition: opacity 0.2s ease;
+}
+
+.compactModeBackdropOpen {
+  pointer-events: auto;
+  opacity: 1;
+  background: rgb(15 23 42 / 0.03);
+}
+
+.compactModePanel {
+  pointer-events: none;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 116;
+  width: min(var(--desktop-side-rail-space), calc(100vw - 0.5rem));
+  box-sizing: border-box;
+  border-right: 1px solid #cbd5e1;
+  border-radius: 0;
+  background: var(--vertical-mode-track-bg);
+  padding: 1rem 0 1rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+  opacity: 0;
+  transform: translateX(-0.8rem);
+  transform-origin: left center;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.compactModePanelOpen {
+  pointer-events: auto;
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.compactModeCloseButton {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.45rem;
+  display: inline-flex;
+  height: auto;
+  width: auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #334155;
+  padding: 0.15rem;
+  line-height: 0;
+  cursor: pointer;
+}
+
+.compactModeCloseIcon {
+  height: 1rem;
+  width: 1rem;
+}
+
+.compactModeTitle {
+  margin: 0 0 0.9rem var(--desktop-page-gutter);
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  color: #0f172a;
+  pointer-events: none;
+}
+
+.compactModePanel .verticalModeTrack {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  width: calc(var(--desktop-side-rail-space) - (2 * var(--desktop-page-gutter)));
+  max-width: calc(100% - (2 * var(--desktop-page-gutter)));
+  margin-left: var(--desktop-page-gutter);
+}
+
 .statusMessage {
   margin: 0;
   border-radius: 0.75rem;
@@ -79,25 +309,34 @@
 .statusMessageLoading {
   width: 100%;
   box-sizing: border-box;
-  margin-bottom: 1rem;
+  margin: 0;
+  min-height: var(--header-control-size);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
 }
 
 .modeMenuRoot {
   position: fixed;
   top: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
+  left: var(--compact-mode-safe-inset);
+  right: var(--compact-mode-safe-inset);
+  transform: none;
   z-index: 100;
-  width: min(calc(100vw - 1rem), 44rem);
+  width: auto;
+  max-width: none;
 }
 
 .modeSegmentTrack {
   width: 100%;
+  height: var(--header-control-size);
+  box-sizing: border-box;
   border: 1px solid #cbd5e1;
   border-radius: 9999px;
   background: rgb(226 232 240 / 0.9);
-  padding: 0.25rem;
+  padding: 0.2rem;
   box-shadow: 0 12px 28px -18px rgb(15 23 42 / 0.42);
 }
 
@@ -106,7 +345,7 @@
   display: grid;
   grid-template-columns: repeat(var(--mode-option-count, 4), minmax(0, 1fr));
   align-items: stretch;
-  min-height: 2.45rem;
+  height: 100%;
 }
 
 .modeSegmentThumb {
@@ -131,14 +370,19 @@
   border-radius: 9999px;
   background: transparent;
   color: #475569;
-  font-size: 0.7rem;
-  line-height: 1.08;
+  font-size: 0.88rem;
+  line-height: 1.1;
   letter-spacing: -0.01em;
-  font-weight: 500;
-  padding: 0.28rem 0.2rem;
+  font-weight: 600;
+  padding: 0.2rem 0.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   transition: color 180ms ease;
   text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .modeSegmentButtonActive {
@@ -390,27 +634,45 @@
   pointer-events: none;
 }
 
+@media (max-width: 1023px) {
+  .pageLabel {
+    opacity: 0;
+    transform: translateX(-0.85rem);
+    pointer-events: none;
+  }
+}
+
 @media (min-width: 640px) {
   .page {
     padding-inline: 1.5rem;
+    --compact-page-gutter: 1.5rem;
   }
 
   .modeMenuRoot {
     top: 1.5rem;
-    width: min(calc(100vw - 3rem), 44rem);
-  }
-
-  .modeSegmentGrid {
-    min-height: 2.45rem;
-  }
-
-  .modeSegmentButton {
-    font-size: 0.76rem;
+    left: var(--compact-mode-safe-inset);
+    right: var(--compact-mode-safe-inset);
+    width: auto;
   }
 
   .pageLabel {
     top: 1.5rem;
     left: 1.5rem;
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+  }
+
+  .compactModeMenuButton {
+    top: 1.5rem;
+    left: 1.5rem;
+  }
+
+  .compactModePanel {
+    width: min(var(--desktop-side-rail-space), calc(100vw - 0.75rem));
+  }
+
+  .compactModeTitle {
+    margin-bottom: 1rem;
     font-size: 2.25rem;
     line-height: 2.5rem;
   }
@@ -432,10 +694,57 @@
   }
 }
 
+@media (min-width: 1024px) {
+  .sideModeMenuRoot {
+    display: block;
+    left: var(--desktop-page-gutter);
+    width: calc(var(--desktop-side-rail-space) - (2 * var(--desktop-page-gutter)));
+  }
+
+  .page {
+    padding-left: var(--desktop-content-left-inset);
+    padding-right: var(--desktop-content-right-inset);
+  }
+
+  .page::before {
+    content: "";
+    pointer-events: none;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--desktop-side-rail-space);
+    z-index: 1;
+    background: var(--vertical-mode-track-bg);
+  }
+
+  .modeMenuRoot {
+    left: var(--desktop-content-left-inset);
+    right: var(--desktop-mode-right-inset);
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
+
+  .shell {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .compactModeMenuButton,
+  .compactModeBackdrop,
+  .compactModePanel {
+    display: none;
+  }
+}
+
 :global(html.dark) .page {
   --page-bg-base: #180909;
   --page-top-radial: rgba(248, 113, 113, 0.14);
   --page-bottom-radial: rgba(248, 113, 113, 0.12);
+  --vertical-mode-track-bg: rgb(30 30 36 / 0.82);
   background: var(--page-bg-base);
   color: #f8fafc;
 }
@@ -455,6 +764,57 @@
 }
 
 :global(html.dark) .pageLabel {
+  color: #e2e8f0;
+}
+
+:global(html.dark) .verticalModeTrack {
+  border-color: transparent;
+  background: transparent;
+}
+
+:global(html.dark) .verticalModeThumb {
+  background: #050505;
+  box-shadow:
+    0 10px 22px -12px rgb(0 0 0 / 0.9),
+    inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+:global(html.dark) .verticalModeButton {
+  color: #dbe3ed;
+}
+
+:global(html.dark) .verticalModeButtonActive {
+  color: #ffffff;
+}
+
+:global(html.dark) .compactModeMenuButton {
+  border-color: rgb(255 255 255 / 0.15);
+  background: #000000;
+  color: #f5f5f5;
+  box-shadow:
+    0 10px 25px -10px rgb(0 0 0 / 0.8),
+    0 0 0 1px rgb(255 255 255 / 0.2);
+}
+
+:global(html.dark) .compactModeMenuButton:hover {
+  background: #0d0d0d;
+}
+
+:global(html.dark) .compactModeBackdropOpen {
+  background: rgb(0 0 0 / 0.08);
+}
+
+:global(html.dark) .compactModePanel {
+  border-right-color: rgb(255 255 255 / 0.12);
+}
+
+:global(html.dark) .compactModeCloseButton {
+  border-color: transparent;
+  background: transparent;
+  color: #f5f5f5;
+}
+
+:global(html.dark) .compactModeTitle {
   color: #e2e8f0;
 }
 
@@ -482,6 +842,19 @@
 
 :global(html.dark) .modeSegmentButtonActive {
   color: #ffffff;
+}
+
+@media (max-width: 1260px) {
+  .modeSegmentButton {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 1100px) {
+  .modeSegmentButton {
+    font-size: 0.72rem;
+    line-height: 1.05;
+  }
 }
 
 :global(html.dark) .statCard {
