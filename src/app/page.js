@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import SettingsMenu from './components/SettingsMenu';
 import styles from './page.module.css';
@@ -23,18 +22,19 @@ function isRefreshTokenError(error) {
 
 export default function Home() {
   const supabase = useMemo(() => createClient(), []);
-  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const isSuperadminRequired = searchParams.get('superadmin_required') === '1';
+  const [isSuperadminRequired, setIsSuperadminRequired] = useState(false);
 
   useEffect(() => {
-    if (!isSuperadminRequired) {
-      return;
-    }
+    const urlSearchParams = new URLSearchParams(window.location.search);
+    const requiresSuperadmin = urlSearchParams.get('superadmin_required') === '1';
+    setIsSuperadminRequired(requiresSuperadmin);
 
-    void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-  }, [isSuperadminRequired, supabase]);
+    if (requiresSuperadmin) {
+      void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    }
+  }, [supabase]);
 
   const signInWithGoogle = () =>
     supabase.auth.signInWithOAuth({
