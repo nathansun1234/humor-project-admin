@@ -1,8 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 
-function redirectHomeAndClearAuthCookies(request) {
+function redirectHomeAndClearAuthCookies(request, options = {}) {
+  const { superadminRequired = false } = options;
   const loginUrl = new URL('/', request.url);
+  if (superadminRequired) {
+    loginUrl.searchParams.set('superadmin_required', '1');
+  }
   const redirect = NextResponse.redirect(loginUrl);
 
   // Remove stale Supabase cookies so a fresh OAuth flow can start cleanly.
@@ -59,8 +63,12 @@ export async function middleware(request) {
       .eq('id', user.id)
       .maybeSingle();
 
-    if (profileError || profile?.is_superadmin !== true) {
+    if (profileError) {
       return redirectHomeAndClearAuthCookies(request);
+    }
+
+    if (profile?.is_superadmin !== true) {
+      return redirectHomeAndClearAuthCookies(request, { superadminRequired: true });
     }
 
     return response;

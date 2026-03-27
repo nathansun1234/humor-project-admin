@@ -27,6 +27,28 @@
   justify-content: center;
 }
 
+.superadminRequiredMessage {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  width: min(34rem, calc(100% - 2rem));
+  box-sizing: border-box;
+  margin: 0;
+  min-height: 2.75rem;
+  border-radius: 9999px;
+  border: 1px solid rgb(248 113 113 / 0.5);
+  background: rgb(254 226 226 / 0.9);
+  color: #991b1b;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
 .card {
   width: 100%;
   max-width: 36rem;
@@ -145,4 +167,10 @@
 
 :global(html.dark) .errorMessage {
   color: #fca5a5;
+}
+
+:global(html.dark) .superadminRequiredMessage {
+  border-color: rgb(248 113 113 / 0.55);
+  background: rgb(185 28 28 / 0.22);
+  color: #fecaca;
 }

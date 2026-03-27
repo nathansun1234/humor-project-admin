@@ -177,6 +177,48 @@ async function fetchRecentRows(supabase, tableName, columns, rowLimit, options =
   };
 }
 
+async function enrichRowsWithProfileData(supabase, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  const profileIds = [...new Set(rows.map((row) => toDisplayText(row?.profile_id)).filter(Boolean))];
+  if (profileIds.length === 0) {
+    return rows;
+  }
+
+  const { data: profileRows, error: profileError } = await runSupabaseQueryWithRetry(() =>
+    supabase.from('profiles').select('id,first_name,last_name,email').in('id', profileIds)
+  );
+
+  if (profileError) {
+    return rows;
+  }
+
+  const profileById = new Map();
+
+  for (const profile of profileRows ?? []) {
+    const profileId = toDisplayText(profile?.id);
+    if (!profileId) {
+      continue;
+    }
+
+    profileById.set(profileId, profile);
+  }
+
+  return rows.map((row) => {
+    const profileId = toDisplayText(row?.profile_id);
+    const profile = profileId ? profileById.get(profileId) : null;
+
+    return {
+      ...row,
+      profile_first_name: toDisplayText(profile?.first_name),
+      profile_last_name: toDisplayText(profile?.last_name),
+      profile_email: toDisplayText(profile?.email),
+    };
+  });
+}
+
 async function searchRowsWithRecentScan(supabase, viewKey, rawSearchQuery, rowLimit) {
   const config = SEARCH_VIEW_CONFIG[viewKey];
   if (!config) {
@@ -438,9 +480,11 @@ export async function GET(request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
+    const nextRows = viewKey === 'captions' ? await enrichRowsWithProfileData(supabase, rows) : rows;
+
     return NextResponse.json({
       view: viewKey,
-      rows,
+      rows: nextRows,
     });
   }
 
@@ -490,6 +534,8 @@ export async function GET(request) {
     getTopUpvoteStats(supabase),
   ]);
 
+  const enrichedCaptions = await enrichRowsWithProfileData(supabase, captionsResult.rows);
+
   return NextResponse.json({
     votes: {
       day: dayVotes.count,
@@ -504,7 +550,7 @@ export async function GET(request) {
     topCaptions: topStats.topCaptions,
     topUsers: topStats.topUsers,
     users: usersResult.rows,
-    captions: captionsResult.rows,
+    captions: enrichedCaptions,
     images: imagesResult.rows,
     errors: {
       stats: joinErrors([dayVotes.error, weekVotes.error, monthVotes.error]),

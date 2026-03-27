@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client';
 import { createPortal } from 'react-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './AdminDataPanels.module.css';
 
 const DEFAULT_DISPLAY_COUNT = 100;
@@ -577,6 +577,7 @@ export default function AdminDataPanels({
   const [isSubmittingCrudForm, setIsSubmittingCrudForm] = useState(false);
   const [isDeletingCrudRow, setIsDeletingCrudRow] = useState(false);
   const [detailModalState, setDetailModalState] = useState(null);
+  const previousActiveTableKeyRef = useRef(null);
   const isEditActionInProgress = isSavingImageEdit || isDeletingImage;
   const isCrudActionInProgress = isSubmittingCrudForm || isDeletingCrudRow;
 
@@ -678,6 +679,76 @@ export default function AdminDataPanels({
 
     return readOnlyRefreshTokenByView[activeReadOnlyViewKey] ?? 0;
   }, [activeReadOnlyViewKey, readOnlyRefreshTokenByView]);
+  const activeTableKey = useMemo(() => {
+    if (panelMode === 'users') {
+      return activeUsersSubMode;
+    }
+
+    if (panelMode === 'captions') {
+      return activeCaptionsSubMode;
+    }
+
+    if (panelMode === 'images') {
+      return 'images';
+    }
+
+    if (panelMode === 'humorFlavors') {
+      return activeHumorSubMode;
+    }
+
+    if (panelMode === 'llms') {
+      return activeLlmsSubMode;
+    }
+
+    return 'overview';
+  }, [activeCaptionsSubMode, activeHumorSubMode, activeLlmsSubMode, activeUsersSubMode, panelMode]);
+
+  useEffect(() => {
+    const previousTableKey = previousActiveTableKeyRef.current;
+    previousActiveTableKeyRef.current = activeTableKey;
+
+    if (!previousTableKey || previousTableKey === activeTableKey) {
+      return;
+    }
+
+    if (previousTableKey === 'users') {
+      setUserSearchInput('');
+      setAppliedUserSearch('');
+      setSearchedUsers([]);
+      setUserSearchError('');
+      setIsSearchingUsers(false);
+      return;
+    }
+
+    if (previousTableKey === 'captions') {
+      setCaptionSearchInput('');
+      setAppliedCaptionSearch('');
+      setSearchedCaptions([]);
+      setCaptionSearchError('');
+      setIsSearchingCaptions(false);
+      return;
+    }
+
+    if (previousTableKey === 'images') {
+      setImageSearchInput('');
+      setAppliedImageSearch('');
+      setSearchedImages([]);
+      setImageSearchError('');
+      setIsSearchingImages(false);
+      return;
+    }
+
+    if (READ_ONLY_TABLE_CONFIG[previousTableKey]) {
+      setReadOnlySearchInputByView((currentSearchInputs) => ({
+        ...currentSearchInputs,
+        [previousTableKey]: '',
+      }));
+      setAppliedReadOnlySearchByView((currentAppliedSearch) => ({
+        ...currentAppliedSearch,
+        [previousTableKey]: '',
+      }));
+    }
+  }, [activeTableKey]);
 
   useEffect(() => {
     setIsClient(true);
@@ -1083,6 +1154,18 @@ export default function AdminDataPanels({
     return normalizedProfileId;
   }
 
+  function getCaptionDetailRow(caption) {
+    if (!caption || typeof caption !== 'object') {
+      return caption;
+    }
+
+    const detailRow = { ...caption };
+    delete detailRow.profile_first_name;
+    delete detailRow.profile_last_name;
+    delete detailRow.profile_email;
+    return detailRow;
+  }
+
   function getRowImageUrl(viewKey, row) {
     if (!row || typeof row !== 'object') {
       return null;
@@ -1134,7 +1217,7 @@ export default function AdminDataPanels({
 
       return {
         primaryText: getProfileLabel(profileId, row),
-        secondaryLines: [`profile id: ${profileId}`],
+        secondaryLines: [`id: ${rowId}`],
         imageUrl,
       };
     }
@@ -2165,7 +2248,9 @@ export default function AdminDataPanels({
           <div className={styles.headerMain}>
             <h2 className={styles.title}>{config.title}</h2>
             <p className={styles.accessText}>{accessLabel}</p>
-            <p className={styles.imagesHint}>{canEditRows ? 'Click row to read/modify' : 'Click row to read'}</p>
+            <p className={styles.imagesHint}>
+              {canEditRows ? 'Click card to read/modify fields' : 'Click card to read all fields'}
+            </p>
           </div>
           {canCreateRows ? (
             <button type="button" className={styles.addButton} onClick={() => openCreateCrudModal(viewKey)}>
@@ -2288,7 +2373,7 @@ export default function AdminDataPanels({
           <div className={styles.headerMain}>
             <h2 className={styles.title}>Users</h2>
             <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
-            <p className={styles.imagesHint}>Click row to read</p>
+            <p className={styles.imagesHint}>Click card to read all fields</p>
           </div>
         </div>
 
@@ -2389,7 +2474,7 @@ export default function AdminDataPanels({
           <div className={styles.headerMain}>
             <h2 className={styles.title}>Captions</h2>
             <p className={styles.accessText}>{READ_ACCESS_LABEL}</p>
-            <p className={styles.imagesHint}>Click row to read</p>
+            <p className={styles.imagesHint}>Click card to read all fields</p>
           </div>
         </div>
 
@@ -2444,6 +2529,7 @@ export default function AdminDataPanels({
             visibleCaptions.map((caption) => {
               const captionText = resolveCaptionText(caption);
               const captionThumbnailUrl = getCaptionThumbnailUrl(caption, imageUrlById);
+              const captionUserLabel = getProfileLabel(caption?.profile_id, caption);
 
               return (
                 <button
@@ -2453,7 +2539,7 @@ export default function AdminDataPanels({
                   onClick={() =>
                     openDetailModal({
                       title: `Read ${getSingularTableLabel('captions')}`,
-                      row: caption,
+                      row: getCaptionDetailRow(caption),
                       prioritizedKeys: ['id', 'created_datetime_utc', 'profile_id', 'image_id', 'is_public', 'content'],
                       imageUrl: captionThumbnailUrl,
                       imageAlt: 'Caption image',
@@ -2468,7 +2554,7 @@ export default function AdminDataPanels({
                   <div className={styles.captionBody}>
                     <p className={styles.primaryText}>{captionText ?? '[no caption content]'}</p>
                     <p className={styles.secondaryText}>id: {caption.id}</p>
-                    <p className={styles.secondaryText}>user: {caption.profile_id}</p>
+                    <p className={styles.secondaryText}>user: {captionUserLabel}</p>
                     {isPublicCaption(caption) ? <span className={`${styles.badge} ${styles.publicBadge}`}>public</span> : null}
                   </div>
                 </button>
@@ -2494,7 +2580,7 @@ export default function AdminDataPanels({
           <div className={styles.headerMain}>
             <h2 className={styles.title}>Images</h2>
             <p className={styles.accessText}>{CRUD_ACCESS_LABEL}</p>
-            <p className={styles.imagesHint}>Click on card to read/modify</p>
+            <p className={styles.imagesHint}>Click card to read/modify fields</p>
           </div>
           <button type="button" className={styles.addButton} onClick={handleOpenAddImageModal}>
             Add image

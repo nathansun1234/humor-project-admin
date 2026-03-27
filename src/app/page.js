@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import SettingsMenu from './components/SettingsMenu';
 import styles from './page.module.css';
@@ -22,14 +23,27 @@ function isRefreshTokenError(error) {
 
 export default function Home() {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const isSuperadminRequired = searchParams.get('superadmin_required') === '1';
+
+  useEffect(() => {
+    if (!isSuperadminRequired) {
+      return;
+    }
+
+    void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+  }, [isSuperadminRequired, supabase]);
 
   const signInWithGoogle = () =>
     supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${location.origin}/auth/callback`,
+        queryParams: {
+          prompt: 'select_account',
+        },
       },
     });
 
@@ -65,6 +79,11 @@ export default function Home() {
     <main className={styles.page}>
       <div className={styles.backgroundLayer} />
       <SettingsMenu />
+      {isSuperadminRequired ? (
+        <p className={styles.superadminRequiredMessage} role="alert">
+          Superadmin Required!
+        </p>
+      ) : null}
       <div className={styles.shell}>
         <section className={styles.card}>
           <p className={styles.eyebrow}>Welcome</p>
