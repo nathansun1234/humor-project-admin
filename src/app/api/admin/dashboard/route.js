@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
-const TOP_COUNT = 10;
+const TOP_COUNT = 5;
 const DEFAULT_USER_LIMIT = 100;
 const DEFAULT_CAPTION_LIMIT = 100;
 const DEFAULT_IMAGE_LIMIT = 30;
@@ -10,6 +10,8 @@ const SEARCH_PAGE_SIZE = 1000;
 const SEARCH_MAX_SCAN_ROWS = 60000;
 const SEARCH_RESULT_LIMIT = 1000;
 const TOP_CAPTION_SCAN_LIMIT = 5000;
+const CAPTION_VOTE_SCAN_PAGE_SIZE = 2000;
+const CAPTION_LOOKUP_BATCH_SIZE = 100;
 const CAPTION_TEXT_KEYS = ['content', 'caption', 'text', 'title', 'generated_caption', 'caption_text'];
 const SEARCH_VIEW_CONFIG = {
   users: {
@@ -278,23 +280,190 @@ async function searchRowsWithRecentScan(supabase, viewKey, rawSearchQuery, rowLi
   return { rows: matchedRows, error: null };
 }
 
-async function getTopUpvoteStats(supabase) {
-  const { data: captionRows, error: captionsError } = await runSupabaseQueryWithRetry(() =>
-    supabase
-      .from('captions')
-      .select('id,profile_id,image_id,content,like_count,created_datetime_utc')
-      .gt('like_count', 0)
-      .order('like_count', { ascending: false })
-      .order('created_datetime_utc', { ascending: false })
-      .order('id', { ascending: false })
-      .range(0, TOP_CAPTION_SCAN_LIMIT - 1)
+function chunkValues(values, chunkSize) {
+  if (!Array.isArray(values) || values.length === 0 || chunkSize <= 0) {
+    return [];
+  }
+
+  const chunks = [];
+  for (let index = 0; index < values.length; index += chunkSize) {
+    chunks.push(values.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
+async function getTopImagesByNetLikes(supabase) {
+  const voteCountsByCaptionId = new Map();
+  let offset = 0;
+
+  while (true) {
+    const { data: captionVoteRows, error: captionVoteError } = await runSupabaseQueryWithRetry(() =>
+      supabase
+        .from('caption_votes')
+        .select('id,caption_id,vote_value')
+        .order('id', { ascending: true })
+        .range(offset, offset + CAPTION_VOTE_SCAN_PAGE_SIZE - 1)
+    );
+
+    if (captionVoteError) {
+      return { topImages: [], error: captionVoteError.message };
+    }
+
+    const rows = Array.isArray(captionVoteRows) ? captionVoteRows : [];
+
+    if (rows.length === 0) {
+      break;
+    }
+
+    for (const voteRow of rows) {
+      const captionId = toDisplayText(voteRow?.caption_id);
+      if (!captionId) {
+        continue;
+      }
+
+      const direction = getVoteDirection(voteRow?.vote_value);
+      if (direction === 0) {
+        continue;
+      }
+
+      const voteCounts = voteCountsByCaptionId.get(captionId) ?? { upvotes: 0, downvotes: 0 };
+      if (direction > 0) {
+        voteCounts.upvotes += 1;
+      } else {
+        voteCounts.downvotes += 1;
+      }
+
+      voteCountsByCaptionId.set(captionId, voteCounts);
+    }
+
+    offset += rows.length;
+
+    if (rows.length < CAPTION_VOTE_SCAN_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  if (voteCountsByCaptionId.size === 0) {
+    return { topImages: [], error: null };
+  }
+
+  const captionImageIdByCaptionId = new Map();
+  const captionIds = [...voteCountsByCaptionId.keys()];
+  const captionIdChunks = chunkValues(captionIds, CAPTION_LOOKUP_BATCH_SIZE);
+
+  for (const chunk of captionIdChunks) {
+    const { data: captionRows, error: captionsError } = await runSupabaseQueryWithRetry(() =>
+      supabase.from('captions').select('id,image_id').in('id', chunk)
+    );
+
+    if (captionsError) {
+      return { topImages: [], error: captionsError.message };
+    }
+
+    for (const caption of captionRows ?? []) {
+      const captionId = toDisplayText(caption?.id);
+      const imageId = toDisplayText(caption?.image_id);
+      if (!captionId || !imageId) {
+        continue;
+      }
+
+      captionImageIdByCaptionId.set(captionId, imageId);
+    }
+  }
+
+  const likeTotalsByImageId = new Map();
+
+  for (const [captionId, voteCounts] of voteCountsByCaptionId.entries()) {
+    const imageId = captionImageIdByCaptionId.get(captionId);
+    if (!imageId) {
+      continue;
+    }
+
+    const likes = voteCounts.upvotes - voteCounts.downvotes;
+    const currentImageTotals = likeTotalsByImageId.get(imageId) ?? { likes: 0, upvotes: 0, downvotes: 0 };
+
+    currentImageTotals.likes += likes;
+    currentImageTotals.upvotes += voteCounts.upvotes;
+    currentImageTotals.downvotes += voteCounts.downvotes;
+
+    likeTotalsByImageId.set(imageId, currentImageTotals);
+  }
+
+  const topImageEntries = [...likeTotalsByImageId.entries()]
+    .map(([imageId, totals]) => ({
+      imageId,
+      likes: toNumber(totals.likes),
+      upvotes: Math.max(0, toNumber(totals.upvotes)),
+      downvotes: Math.max(0, toNumber(totals.downvotes)),
+    }))
+    .sort(
+      (first, second) =>
+        second.likes - first.likes || second.upvotes - first.upvotes || String(first.imageId).localeCompare(String(second.imageId))
+    )
+    .slice(0, TOP_COUNT);
+
+  if (topImageEntries.length === 0) {
+    return { topImages: [], error: null };
+  }
+
+  const topImageIds = topImageEntries.map((entry) => entry.imageId);
+  const { data: imageRows, error: imagesError } = await runSupabaseQueryWithRetry(() =>
+    supabase.from('images').select('id,url,image_description').in('id', topImageIds)
   );
+
+  if (imagesError) {
+    return { topImages: [], error: imagesError.message };
+  }
+
+  const imageById = new Map();
+
+  for (const image of imageRows ?? []) {
+    const imageId = toDisplayText(image?.id);
+    if (!imageId) {
+      continue;
+    }
+
+    imageById.set(imageId, image);
+  }
+
+  const topImages = topImageEntries.map((entry) => {
+    const image = imageById.get(entry.imageId);
+
+    return {
+      imageId: entry.imageId,
+      likes: entry.likes,
+      upvotes: entry.upvotes,
+      downvotes: entry.downvotes,
+      label: toDisplayText(image?.image_description) ?? entry.imageId,
+      imageUrl: toDisplayText(image?.url),
+    };
+  });
+
+  return { topImages, error: null };
+}
+
+async function getTopUpvoteStats(supabase) {
+  const [{ data: captionRows, error: captionsError }, topImageStats] = await Promise.all([
+    runSupabaseQueryWithRetry(() =>
+      supabase
+        .from('captions')
+        .select('id,profile_id,image_id,content,like_count,created_datetime_utc')
+        .gt('like_count', 0)
+        .order('like_count', { ascending: false })
+        .order('created_datetime_utc', { ascending: false })
+        .order('id', { ascending: false })
+        .range(0, TOP_CAPTION_SCAN_LIMIT - 1)
+    ),
+    getTopImagesByNetLikes(supabase),
+  ]);
 
   if (captionsError) {
     return {
       topCaptions: [],
       topUsers: [],
-      error: captionsError.message,
+      topImages: topImageStats.topImages,
+      error: joinErrors([captionsError.message, topImageStats.error]),
     };
   }
 
@@ -306,13 +475,49 @@ async function getTopUpvoteStats(supabase) {
     return {
       topCaptions: [],
       topUsers: [],
-      error: null,
+      topImages: topImageStats.topImages,
+      error: topImageStats.error,
     };
   }
 
   const topCaptionRows = positiveCaptionRows.slice(0, TOP_COUNT);
+  const topCaptionIds = topCaptionRows.map((caption) => toDisplayText(caption?.id)).filter(Boolean);
 
   const imageIds = [...new Set(topCaptionRows.map((caption) => toDisplayText(caption?.image_id)).filter(Boolean))];
+  const captionVoteCountsByCaptionId = new Map();
+  let topCaptionVotesErrorMessage = null;
+
+  if (topCaptionIds.length > 0) {
+    const { data: captionVoteRows, error: captionVotesError } = await runSupabaseQueryWithRetry(() =>
+      supabase.from('caption_votes').select('caption_id,vote_value').in('caption_id', topCaptionIds)
+    );
+
+    if (captionVotesError) {
+      topCaptionVotesErrorMessage = captionVotesError.message;
+    } else {
+      for (const voteRow of captionVoteRows ?? []) {
+        const captionId = toDisplayText(voteRow?.caption_id);
+        if (!captionId) {
+          continue;
+        }
+
+        const direction = getVoteDirection(voteRow?.vote_value);
+        if (direction === 0) {
+          continue;
+        }
+
+        const counts = captionVoteCountsByCaptionId.get(captionId) ?? { upvotes: 0, downvotes: 0 };
+
+        if (direction > 0) {
+          counts.upvotes += 1;
+        } else {
+          counts.downvotes += 1;
+        }
+
+        captionVoteCountsByCaptionId.set(captionId, counts);
+      }
+    }
+  }
 
   const imageUrlById = new Map();
 
@@ -325,7 +530,8 @@ async function getTopUpvoteStats(supabase) {
       return {
         topCaptions: [],
         topUsers: [],
-        error: imageError.message,
+        topImages: topImageStats.topImages,
+        error: joinErrors([imageError.message, topImageStats.error, topCaptionVotesErrorMessage]),
       };
     }
 
@@ -348,9 +554,16 @@ async function getTopUpvoteStats(supabase) {
         return null;
       }
 
+      const likes = Math.max(0, toNumber(caption?.like_count));
+      const captionVoteCounts = captionVoteCountsByCaptionId.get(captionId);
+      const upvotes = captionVoteCounts?.upvotes ?? likes;
+      const downvotes = captionVoteCounts?.downvotes ?? 0;
+
       return {
         captionId,
-        upvotes: Math.max(0, toNumber(caption?.like_count)),
+        likes,
+        upvotes,
+        downvotes,
         label: resolveCaptionText(caption) ?? captionId,
         imageUrl: getCaptionImageUrl(caption, imageUrlById),
       };
@@ -386,7 +599,8 @@ async function getTopUpvoteStats(supabase) {
       return {
         topCaptions: [],
         topUsers: [],
-        error: usersError.message,
+        topImages: topImageStats.topImages,
+        error: joinErrors([usersError.message, topImageStats.error, topCaptionVotesErrorMessage]),
       };
     }
 
@@ -415,14 +629,22 @@ async function getTopUpvoteStats(supabase) {
   return {
     topCaptions,
     topUsers,
-    error: null,
+    topImages: topImageStats.topImages,
+    error: joinErrors([topImageStats.error, topCaptionVotesErrorMessage]),
   };
 }
 
-async function getVoteCountSince(supabase, sinceIsoString) {
-  const { count, error } = await runSupabaseQueryWithRetry(() =>
-    supabase.from('caption_votes').select('id', { count: 'exact', head: true }).gte('created_datetime_utc', sinceIsoString)
-  );
+async function getCreatedCountSince(supabase, tableName, sinceIsoString, options = {}) {
+  const { timestampColumn = 'created_datetime_utc', applyFilters } = options;
+  const { count, error } = await runSupabaseQueryWithRetry(() => {
+    let query = supabase.from(tableName).select('id', { count: 'exact', head: true }).gte(timestampColumn, sinceIsoString);
+
+    if (typeof applyFilters === 'function') {
+      query = applyFilters(query);
+    }
+
+    return query;
+  });
 
   if (error) {
     return { count: 0, error: error.message };
@@ -441,6 +663,153 @@ async function getTableCount(supabase, tableName) {
   }
 
   return { count: count ?? 0, error: null };
+}
+
+function buildEmptyCaptionAnalytics(totalCaptions = 0) {
+  const safeTotalCaptions = Math.max(0, toNumber(totalCaptions));
+
+  return {
+    totalCaptions: safeTotalCaptions,
+    captionsWithVotes: 0,
+    captionsWithoutVotes: safeTotalCaptions,
+    coveragePercent: 0,
+    upvotesTotal: 0,
+    downvotesTotal: 0,
+    totalVotes: 0,
+    upvoteToDownvoteRatio: null,
+    hasDownvoteData: true,
+    distribution: {
+      positive: 0,
+      neutral: 0,
+      negative: 0,
+      noVotes: safeTotalCaptions,
+    },
+    error: null,
+  };
+}
+
+function getVoteDirection(voteValue) {
+  const parsedVoteValue = toNumber(voteValue);
+
+  if (parsedVoteValue > 0) {
+    return 1;
+  }
+
+  if (parsedVoteValue < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+async function getCaptionRatingAnalytics(supabase, totalCaptionsHint = null) {
+  const analytics = buildEmptyCaptionAnalytics(totalCaptionsHint ?? 0);
+  const totalCaptions = toNumber(totalCaptionsHint);
+
+  if (totalCaptions <= 0) {
+    return analytics;
+  }
+
+  analytics.totalCaptions = totalCaptions;
+  analytics.captionsWithoutVotes = totalCaptions;
+  analytics.distribution.noVotes = totalCaptions;
+
+  let offset = 0;
+  let upvoteTotal = 0;
+  let downvoteTotal = 0;
+  const votesByCaptionId = new Map();
+  let positiveCount = 0;
+  let neutralCount = 0;
+  let negativeCount = 0;
+  while (true) {
+    const { data: captionVoteRows, error: captionVoteError } = await runSupabaseQueryWithRetry(() =>
+      supabase
+        .from('caption_votes')
+        .select('id,caption_id,vote_value')
+        .order('id', { ascending: true })
+        .range(offset, offset + CAPTION_VOTE_SCAN_PAGE_SIZE - 1)
+    );
+
+    if (captionVoteError) {
+      return {
+        ...analytics,
+        error: captionVoteError.message,
+      };
+    }
+
+    const rows = Array.isArray(captionVoteRows) ? captionVoteRows : [];
+
+    if (rows.length === 0) {
+      break;
+    }
+
+    for (const voteRow of rows) {
+      const captionId = toDisplayText(voteRow?.caption_id);
+      if (!captionId) {
+        continue;
+      }
+
+      const direction = getVoteDirection(voteRow?.vote_value);
+      if (direction === 0) {
+        continue;
+      }
+
+      const currentVoteCounts = votesByCaptionId.get(captionId) ?? { upvotes: 0, downvotes: 0 };
+
+      if (direction > 0) {
+        currentVoteCounts.upvotes += 1;
+        upvoteTotal += 1;
+      } else {
+        currentVoteCounts.downvotes += 1;
+        downvoteTotal += 1;
+      }
+
+      votesByCaptionId.set(captionId, currentVoteCounts);
+    }
+
+    offset += rows.length;
+
+    if (rows.length < CAPTION_VOTE_SCAN_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  const captionsWithVotes = votesByCaptionId.size;
+
+  for (const { upvotes, downvotes } of votesByCaptionId.values()) {
+    if (upvotes > downvotes) {
+      positiveCount += 1;
+    } else if (downvotes > upvotes) {
+      negativeCount += 1;
+    } else {
+      neutralCount += 1;
+    }
+  }
+
+  const safeCaptionsWithVotes = Math.min(totalCaptions, Math.max(0, captionsWithVotes));
+  const safeCaptionsWithoutVotes = Math.max(0, totalCaptions - safeCaptionsWithVotes);
+  const safeUpvoteTotal = Math.max(0, upvoteTotal);
+  const safeDownvoteTotal = Math.max(0, downvoteTotal);
+  const safeTotalVotes = safeUpvoteTotal + safeDownvoteTotal;
+
+  return {
+    totalCaptions,
+    captionsWithVotes: safeCaptionsWithVotes,
+    captionsWithoutVotes: safeCaptionsWithoutVotes,
+    coveragePercent: totalCaptions > 0 ? (safeCaptionsWithVotes / totalCaptions) * 100 : 0,
+    upvotesTotal: safeUpvoteTotal,
+    downvotesTotal: safeDownvoteTotal,
+    totalVotes: safeTotalVotes,
+    upvoteToDownvoteRatio: safeDownvoteTotal > 0 ? safeUpvoteTotal / safeDownvoteTotal : null,
+    hasDownvoteData: true,
+    distribution: {
+      positive: Math.max(0, positiveCount),
+      neutral: Math.max(0, neutralCount),
+      negative: Math.max(0, negativeCount),
+      noVotes: safeCaptionsWithoutVotes,
+    },
+    error: null,
+  };
 }
 
 export async function GET(request) {
@@ -493,10 +862,19 @@ export async function GET(request) {
   const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
   const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [dayVotes, weekVotes, monthVotes] = await Promise.all([
-    getVoteCountSince(supabase, dayAgo),
-    getVoteCountSince(supabase, weekAgo),
-    getVoteCountSince(supabase, monthAgo),
+  const [dayUsers, weekUsers, monthUsers, dayCaptions, weekCaptions, monthCaptions] = await Promise.all([
+    getCreatedCountSince(supabase, 'profiles', dayAgo),
+    getCreatedCountSince(supabase, 'profiles', weekAgo),
+    getCreatedCountSince(supabase, 'profiles', monthAgo),
+    getCreatedCountSince(supabase, 'captions', dayAgo, {
+      applyFilters: (query) => query.not('content', 'is', null).neq('content', ''),
+    }),
+    getCreatedCountSince(supabase, 'captions', weekAgo, {
+      applyFilters: (query) => query.not('content', 'is', null).neq('content', ''),
+    }),
+    getCreatedCountSince(supabase, 'captions', monthAgo, {
+      applyFilters: (query) => query.not('content', 'is', null).neq('content', ''),
+    }),
   ]);
 
   const [totalUsers, totalCaptions, totalImages] = await Promise.all([
@@ -505,7 +883,7 @@ export async function GET(request) {
     getTableCount(supabase, 'images'),
   ]);
 
-  const [usersResult, captionsResult, imagesResult, topStats] = await Promise.all([
+  const [usersResult, captionsResult, imagesResult, topStats, captionAnalytics] = await Promise.all([
     fetchRecentRows(
       supabase,
       'profiles',
@@ -532,15 +910,21 @@ export async function GET(request) {
       { orderColumn: 'created_datetime_utc', tieBreakerColumn: 'id' }
     ),
     getTopUpvoteStats(supabase),
+    getCaptionRatingAnalytics(supabase, totalCaptions.count),
   ]);
 
   const enrichedCaptions = await enrichRowsWithProfileData(supabase, captionsResult.rows);
 
   return NextResponse.json({
-    votes: {
-      day: dayVotes.count,
-      week: weekVotes.count,
-      month: monthVotes.count,
+    newUsers: {
+      day: dayUsers.count,
+      week: weekUsers.count,
+      month: monthUsers.count,
+    },
+    newCaptions: {
+      day: dayCaptions.count,
+      week: weekCaptions.count,
+      month: monthCaptions.count,
     },
     totals: {
       users: totalUsers.count,
@@ -549,17 +933,27 @@ export async function GET(request) {
     },
     topCaptions: topStats.topCaptions,
     topUsers: topStats.topUsers,
+    topImages: topStats.topImages,
+    captionAnalytics,
     users: usersResult.rows,
     captions: enrichedCaptions,
     images: imagesResult.rows,
     errors: {
-      stats: joinErrors([dayVotes.error, weekVotes.error, monthVotes.error]),
+      stats: joinErrors([
+        dayUsers.error,
+        weekUsers.error,
+        monthUsers.error,
+        dayCaptions.error,
+        weekCaptions.error,
+        monthCaptions.error,
+      ]),
       totals: joinErrors([totalUsers.error, totalCaptions.error, totalImages.error]),
       data: joinErrors([
         usersResult.error?.message,
         captionsResult.error?.message,
         imagesResult.error?.message,
         topStats.error,
+        captionAnalytics.error,
       ]),
     },
   });
